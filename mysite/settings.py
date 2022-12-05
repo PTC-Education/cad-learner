@@ -42,7 +42,7 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
-    'questioner.app.QuestionerConfig', 
+    'questioner.apps.QuestionerConfig', 
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
