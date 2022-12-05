@@ -30,7 +30,8 @@ def login(request: HttpRequest):
         # Check if user is modelling 
         if (
             user.modelling and 
-            user.last_start + datetime.timedelta(minutes=90) < timezone.now() 
+            user.last_start + datetime.timedelta(minutes=90) < timezone.now() and 
+            user.eid == request.GET.get('eid')
         ): 
             if user.expires_at < timezone.now + datetime.timedelta(hours=1): 
                 user.refresh_oauth_token() 
@@ -128,6 +129,76 @@ def model(request: HttpRequest, question_name: str, os_user_id: str):
             "question": curr_que
         }
     )
+
+
+def check_model(request: HttpRequest, question_name: str, os_user_id: str): 
+    """ When a user submits a model, API calls are made to check if the 
+    model is dimensionally correct and placed in proper orientation. 
+    If the model is correct, redirect to the complete page. 
+    If not correct, redirect back to the model page to ask for modifications. 
+    """
+    curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    curr_que = get_object_or_404(Question, question_name=question_name)
+
+    # Get submitted model mass properties 
+    response = requests.get(
+        "{}/api/partstudios/d/{}/w/{}/e/{}/massproperties".format(
+            curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization": "Bearer " + curr_user.access_token
+        }
+    )
+    if response.ok: 
+        response = response.json() 
+        ref_model = [
+            curr_que.model_mass, curr_que.model_volume, curr_que.model_SA, 
+            curr_que.model_COM_x, curr_que.model_COM_y, curr_que.model_COM_z
+        ]
+        user_model = [
+            response['bodies']['-all-']['mass'][0], 
+            response['bodies']['-all-']['volume'][0], 
+            response['bodies']['-all-']['periphery'][0], 
+            response['bodies']['-all-']['centroid'][0], 
+            response['bodies']['-all-']['centroid'][1], 
+            response['bodies']['-all-']['centroid'][2]
+        ]
+        # Evaluate model correctness 
+        check_pass = True 
+        err_allowance = 0.01
+        for i, item in enumerate(ref_model): 
+            if (
+                item * (1 - err_allowance) > user_model[i] or 
+                user_model[i] > item * (1 + err_allowance)
+            ): 
+                check_pass = False
+            ref_model[i] = round(ref_model[i], 2)
+            user_model[i] = round(user_model[i], 2)
+        
+        if check_pass: 
+            # Model is correct and the task is completed 
+            curr_que.completion_count += 1
+            curr_user.completed_history.append(curr_que.question_name)
+            return HttpResponseRedirect(reverse(
+                "questioner:complete", args=[
+                    curr_que.question_name, curr_user.os_user_id
+                ]
+            ))
+        else: 
+            # Build an HTML table to show the difference 
+            fail_message = ""
+            return render(
+                request, "question/model.html", 
+                context={
+                    "user": curr_user, 
+                    "question": curr_que, 
+                    "model_comparison": fail_message
+                }
+            )
+    else: 
+        return HttpResponse("An error has occurred. Please try relaunching the app in the part studio that you originally started this modelling question with ...")
 
 
 def complete(request: HttpRequest, question_name: str, os_user_id: str): 

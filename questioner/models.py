@@ -21,7 +21,7 @@ class AuthUser(models.Model):
     modelling = models.BooleanField(default=False)
     last_start = models.DateTimeField(null=True) # only if modelling 
     curr_question = models.CharField(max_length=400, null=True) # only if modelling 
-    completed = models.JSONField(default=list)
+    completed_history = models.JSONField(default=list)
 
     def refresh_oauth_token(self) -> None: 
         response = requests.post(
