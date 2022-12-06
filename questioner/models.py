@@ -59,35 +59,62 @@ class Question(models.Model):
     5.  Modify other parameters of the question on the admin portal if 
         needed 
     """
-    # There is an auto-generated id for every question  
+    # An auto-generated (incremental) id for every question  
+    question_id = models.BigAutoField(primary_key=True)
 
     # IDs used for initial save 
-    os_doc_id = models.CharField(max_length=40, default=None)
-    os_workspace_id = models.CharField(max_length=40, default=None)
-    os_element_id = models.CharField(max_length=40, default=None)
+    os_doc_id = models.CharField( 
+        "Onshape document ID", 
+        max_length=40, default=None, 
+        help_text="Only relevant for initial save and model update"
+    )
+    os_workspace_id = models.CharField(
+        "Onshape workspace ID", 
+        max_length=40, default=None, 
+        help_text="Only relevant for initial save and model update"
+    )
+    os_element_id = models.CharField(
+        "Onshape element ID", 
+        max_length=40, default=None, 
+        help_text="Only relevant for initial save and model update"
+    )
 
     # Drawing needs to be first saved in the drawings directory
-    cad_drawing = models.CharField(max_length=200, null=True)  # file name 
-    # Number of people completed this question 
-    completion_count = models.PositiveIntegerField(default=0)
+    cad_drawing = models.CharField(
+        "File name of CAD drawing", 
+        max_length=200, null=True, 
+        help_text="Insert single PDF file in GitHub repository and enter file name here (without .pdf suffix)"
+    ) 
+    completion_count = models.PositiveIntegerField(
+        default=0, help_text="The number of times this question is completed by users"
+    )
 
     # Admin-specified parameters for the question 
-    question_name = models.CharField(max_length=400, null=True, unique=True)
-    additional_instructions = models.TextField(null=True)
-    difficulty = models.PositiveIntegerField(default=0)
-    # difficulty: 0 - unclassified, 1 - easy, 2 - medium, 3 - hard
+    question_name = models.CharField(
+        max_length=400, null=True, unique=True, 
+        help_text="A unique name for the question that will be displayed to the users"
+    )
+    additional_instructions = models.TextField(
+        null=True, blank=True, 
+        help_text="(Opitonal) additional instructions for users"
+    )
+    difficulty = models.PositiveIntegerField(
+        default=0, help_text="Difficulty level of the model: 0 - unclassified, 1 - easy, 2 - medium, 3 - hard"
+    )
 
     # API-retrieved info 
     thumbnail = models.TextField(null=True)
     model_mass = models.FloatField(null=True)
     model_volume = models.FloatField(null=True)
-    model_SA = models.FloatField(null=True)
-    model_COM_x = models.FloatField(null=True)
-    model_COM_y = models.FloatField(null=True)
-    model_COM_z = models.FloatField(null=True)
+    model_SA = models.FloatField(null=True, help_text="Surface area")
+    model_COM_x = models.FloatField(null=True, help_text="Center of mass (x-axis)")
+    model_COM_y = models.FloatField(null=True, help_text="Center of mass (y-axis)")
+    model_COM_z = models.FloatField(null=True, help_text="Center of mass (z-axis)")
 
     # This boolean indicates when the system check is passed 
-    published = models.BooleanField(default=False)
+    published = models.BooleanField(
+        default=False, help_text="Users can only access the model after it is published"
+    )
 
     def __str__(self) -> str:
         return self.question_name 

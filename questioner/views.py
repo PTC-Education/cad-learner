@@ -109,19 +109,23 @@ def index(request: HttpRequest, os_user_id: str):
         request, "questioner/index.html", 
         context={
             "user": curr_user, 
-            "questions": Question.objects.order_by("question_name")
+            "questions": Question.objects.order_by("question_id")
         }
     )
 
 
-def model(request: HttpRequest, question_name: str, os_user_id: str): 
+def model(request: HttpRequest, question_id: str, os_user_id: str): 
     """ The view that the users see when working on a question. 
     It provides all necessary information and instructions for the 
     question. When the user finishes, they should be able to submit 
     and check if model is correct. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    curr_que = get_object_or_404(Question, question_name=question_name)
+    curr_que = get_object_or_404(Question, question_id=question_id)
+    
+    # Check if the user is starting with an empty part studio 
+    # ---
+
     return render(
         request, "question/model.html", 
         context={
@@ -131,14 +135,14 @@ def model(request: HttpRequest, question_name: str, os_user_id: str):
     )
 
 
-def check_model(request: HttpRequest, question_name: str, os_user_id: str): 
+def check_model(request: HttpRequest, question_id: str, os_user_id: str): 
     """ When a user submits a model, API calls are made to check if the 
     model is dimensionally correct and placed in proper orientation. 
     If the model is correct, redirect to the complete page. 
     If not correct, redirect back to the model page to ask for modifications. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    curr_que = get_object_or_404(Question, question_name=question_name)
+    curr_que = get_object_or_404(Question, question_id=question_id)
 
     # Get submitted model mass properties 
     response = requests.get(
@@ -180,10 +184,10 @@ def check_model(request: HttpRequest, question_name: str, os_user_id: str):
         if check_pass: 
             # Model is correct and the task is completed 
             curr_que.completion_count += 1
-            curr_user.completed_history.append(curr_que.question_name)
+            curr_user.completed_history.append(curr_que.question_id)
             return HttpResponseRedirect(reverse(
                 "questioner:complete", args=[
-                    curr_que.question_name, curr_user.os_user_id
+                    curr_que.question_id, curr_user.os_user_id
                 ]
             ))
         else: 
@@ -201,14 +205,14 @@ def check_model(request: HttpRequest, question_name: str, os_user_id: str):
         return HttpResponse("An error has occurred. Please try relaunching the app in the part studio that you originally started this modelling question with ...")
 
 
-def complete(request: HttpRequest, question_name: str, os_user_id: str): 
+def complete(request: HttpRequest, question_id: str, os_user_id: str): 
     """ THe view that the users see when a question is finished. 
     It provides a brief summary of the user's performance and relative 
     comparisons to all other users. Users should be able to return to 
     index page to start more practice. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    curr_que = get_object_or_404(Question, question_name=question_name)
+    curr_que = get_object_or_404(Question, question_id=question_id)
     return render(
         request, "question/complete.html", 
         context={

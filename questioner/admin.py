@@ -11,9 +11,10 @@ class QuestionsAdmin(admin.ModelAdmin):
         'question_name', 'difficulty', 'completion_count', 'published'
     ]
     readonly_fields = [
-        'thumbnail', 'model_mass', 'model_volume', 'model_SA', 'model_COM_x', 
+        'model_mass', 'model_volume', 'model_SA', 'model_COM_x', 
         'model_COM_y', 'model_COM_z', 'published'
     ]
+    exclude = ['thumbnail']
     search_fields = ['question_name', 'cad_drawing']
     actions = ['publish_question', 'update_model']
 
