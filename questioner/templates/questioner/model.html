@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'questioner/model.css' %}">
+    </head>
+    <body>
+        <!-- If submission failed (model incorrect) -->
+        <div>
+            {% if fail_message %}
+                <!-- Print out model comparison table -->
+                {{ fail_message |safe }}
+                <!-- Buttom to allow re-submission-->
+            {% endif %}
+        </div>
+    </body>
+</html>

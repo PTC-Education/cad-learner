@@ -109,7 +109,7 @@ def index(request: HttpRequest, os_user_id: str):
         request, "questioner/index.html", 
         context={
             "user": curr_user, 
-            "questions": Question.objects.order_by("question_id")
+            "questions": Question.objects.filter(published=True).order_by("question_name")
         }
     )
 
@@ -124,10 +124,32 @@ def model(request: HttpRequest, question_id: str, os_user_id: str):
     curr_que = get_object_or_404(Question, question_id=question_id)
     
     # Check if the user is starting with an empty part studio 
-    # ---
+    response = requests.get(
+        "{}/api/partstudios/d/{}/w/{}/e/{}/features".format(
+            curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization": "Bearer " + curr_user.access_token
+        }
+    )
+    if response.ok: 
+        response = response.json()
+        if len(response['features']) > 0: 
+            return render(
+                request, "questioner/index.html", 
+                context={
+                    "user": curr_user, 
+                    "questions": Question.objects.order_by("question_id"), 
+                    "error_message": "Please start with a part studio and relaunch this app ..."
+                }
+            )
+    else: 
+        return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
 
     return render(
-        request, "question/model.html", 
+        request, "questioner/model.html", 
         context={
             "user": curr_user, 
             "question": curr_que
@@ -192,9 +214,29 @@ def check_model(request: HttpRequest, question_id: str, os_user_id: str):
             ))
         else: 
             # Build an HTML table to show the difference 
-            fail_message = ""
+            fail_message = '''
+            <table>
+                <tr>
+                    <th>Properties</th>
+                    <th>Expected Values</th>
+                    <th>Actual Values</th>
+                </tr>
+            '''
+            prop_name = [
+                "Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", 
+                "Center of Mass_x (m)", "Center of Mass_y (m)", "Center of Mass_z (m)"
+            ]
+            for i, item in enumerate(prop_name): 
+                fail_message += f'''
+                <tr>
+                    <td>{item}</td>
+                    <td>{ref_model[i]}</td>
+                    <td>{user_model[i]}</td>
+                </tr>
+                '''
+            fail_message += "</table>" 
             return render(
-                request, "question/model.html", 
+                request, "questioner/model.html", 
                 context={
                     "user": curr_user, 
                     "question": curr_que, 
@@ -202,7 +244,7 @@ def check_model(request: HttpRequest, question_id: str, os_user_id: str):
                 }
             )
     else: 
-        return HttpResponse("An error has occurred. Please try relaunching the app in the part studio that you originally started this modelling question with ...")
+        return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
 
 
 def complete(request: HttpRequest, question_id: str, os_user_id: str): 
@@ -214,9 +256,18 @@ def complete(request: HttpRequest, question_id: str, os_user_id: str):
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     curr_que = get_object_or_404(Question, question_id=question_id)
     return render(
-        request, "question/complete.html", 
+        request, "questioner/complete.html", 
         context={
             "user": curr_user, 
             "question": curr_que
+        }
+    )
+
+
+def test_page(request: HttpRequest): 
+    return render(
+        request, "questioner/index.html", 
+        context={
+            "questions": Question.objects.filter(published=True).order_by("question_name")
         }
     )

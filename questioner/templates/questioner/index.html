@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'questioner/index.css' %}">
+        <!-- Load search bar function-->
+    </head>
+    <body>
+        <!-- Load app logo at the top of the page -->
+        <div class="logo">
+            <br /><br />
+            <img src="{% static 'questioner/images/ptc_edu_logo.png' %}" alt="app_logo" width="100%" />
+        </div>
+        <!-- Print out error message if any -->
+        <div>
+            {% if error_message %}
+                <p><strong>{{ error_message }}</strong></p>
+            {% endif %}
+        </div>
+        <!-- Instructions -->
+        <div>
+            <h3>Instructions:</h3>
+            <ol>
+                <li>Launch this app in an empty Part Studio with no features to start with</li>
+                <li>Pick a model of your choice from the list below to start</li>
+                <li>You have <strong>one hour</strong> to model the chosen part based on provided drawing(s)</li>
+                <li>Submit through this app when you finish and your model will be checked against the expected model</li>
+            </ol>
+        </div>
+        <!-- Search bar to filter by question names -->
+        <div></div>
+        <!-- Buttons to filter by difficulty levels -->
+        <div></div>
+        <!-- List all available questions -->
+        <section id="menu">
+            <!-- Present every document as an accordion-->
+            {% for question in questions %}
+                <button class="accordion">
+                    <img src="{{ question.thumbnail }}" alt="" /> 
+                    <h3>&nbsp;&nbsp;{{ question.question_name }}</h3>
+                </button>
+                <div class="panel">
+                    {% if question.additional_instructions %}
+                        <p>{{ question.additional_instructions }}</p>
+                    {% endif %}
+                    <ul>
+                        <li>Difficulty: {{ question.difficulty }}</li>
+                        <li>Number of people completed: {{ question.completion_count }}</li>
+                    </ul>
+                </div>
+            {% endfor %}
+        </section>
+        <!-- Load function for accordion -->
+        <script src="{% static 'questioner/accordion.js' %}" type="text/javascript"></script>
+    </body>
+</html>

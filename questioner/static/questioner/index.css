@@ -1,0 +1,48 @@
+/* Style the app logo at the center top of the page */ 
+.logo{
+    position: relative;
+    top: 5%; 
+    left: 10%;
+    width: 80%; 
+}
+
+/* Style the buttons that are used to open and close the accordion panel */
+.accordion {
+    background-color: #eee;
+    color: #444;
+    padding: 18px;
+    width: 100%;
+    text-align: left;
+    border: none;
+    outline: none;
+    transition: 0.4s;
+    display: inline-flex;
+}
+
+/* Add a background color to the button if it is clicked on (add the .active class with JS), and when you move the mouse over it (hover) */
+.active, .accordion:hover {
+    background-color: #ccc;
+}
+
+/* Style the accordion panel. Note: hidden by default */
+.panel {
+    padding: 0 18px;
+    outline: auto;
+    display: none;
+    background-color: white;
+    overflow: hidden;
+}
+
+/* Add a symbol to each button to indicate whether the collapsible content is open or closed */ 
+.accordion:after {
+    content: '\002B'; 
+    font-weight: bold;
+    color: #777; 
+    position: absolute; 
+    right: 5%;
+}
+
+.active:after {
+    content: '\2212'; 
+}
+

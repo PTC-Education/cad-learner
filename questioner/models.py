@@ -95,7 +95,7 @@ class Question(models.Model):
         help_text="A unique name for the question that will be displayed to the users"
     )
     additional_instructions = models.TextField(
-        null=True, blank=True, 
+        null=True, default=None, 
         help_text="(Opitonal) additional instructions for users"
     )
     difficulty = models.PositiveIntegerField(
