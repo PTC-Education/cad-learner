@@ -6,14 +6,47 @@
     width: 80%; 
 }
 
+/* Style the search menu */
+#searchInput {
+    width: 98%;
+    height: 2em;
+    font-size: 18px;
+    padding-left: 11px;
+    border: 1px 1px solid #ddd;
+}
+
+/* Style the button group for difficulty filtering */
+.btn-group input.radio {
+	display: none;
+}
+
+.btn-group input.radio ~ label {
+    width: 24.5%;
+    border: 1px solid #d1d3d4;
+    border-radius: 5px;
+    background-color: #eee;
+	float: left;
+	line-height: 2.5em; 
+    text-align: center;
+	margin-bottom: 2em; 
+	cursor: pointer;
+}
+
+.btn-group input.radio:hover ~ label, .btn-group input.radio:checked ~ label{
+    background-color: #bbb;
+}
+
+
 /* Style the buttons that are used to open and close the accordion panel */
 .accordion {
     background-color: #eee;
     color: #444;
+    cursor: pointer;
     padding: 18px;
     width: 100%;
     text-align: left;
-    border: none;
+    border: auto;
+    border-radius: 5px;
     outline: none;
     transition: 0.4s;
     display: inline-flex;
@@ -27,8 +60,10 @@
 /* Style the accordion panel. Note: hidden by default */
 .panel {
     padding: 0 18px;
-    outline: auto;
+    outline: none;
     display: none;
+    border: 2px solid black;
+    border-radius: 10px;
     background-color: white;
     overflow: hidden;
 }
@@ -36,6 +71,7 @@
 /* Add a symbol to each button to indicate whether the collapsible content is open or closed */ 
 .accordion:after {
     content: '\002B'; 
+    font-size: 2em;
     font-weight: bold;
     color: #777; 
     position: absolute; 
@@ -46,3 +82,16 @@
     content: '\2212'; 
 }
 
+/* Style the submit button of forms */ 
+input[type=submit] {
+    padding: 10px 10px;
+    cursor: pointer;
+    background-color: #ddd;
+    border: 0 none;
+    border-radius: 5px;
+    margin-bottom: 1em;
+}
+
+input[type=submit]:hover {
+    background-color: #bbb;
+}

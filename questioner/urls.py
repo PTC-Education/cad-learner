@@ -8,6 +8,5 @@ urlpatterns = [
     path('index/<str:os_user_id>/', views.index, name='index'), 
     path('modelling/<str:question_id>/<str:os_user_id>/', views.model, name='model'), 
     path('check/<str:question_id>/<str:os_user_id>/', views.check_model, name="check"), 
-    path('complete/<str:question_id>/<str:os_user_id>/', views.complete, name="complete"), 
-    path('test/', views.test_page, name="test")
+    path('complete/<str:question_id>/<str:os_user_id>/', views.complete, name="complete") 
 ]

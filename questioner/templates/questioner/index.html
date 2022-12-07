@@ -3,7 +3,8 @@
     <head>
         {% load static %}
         <link rel="stylesheet" href="{% static 'questioner/index.css' %}">
-        <!-- Load search bar function-->
+        <!-- Load search_filter function for the search menu and difficulty filtering -->
+        <script src="{% static 'questioner/search_filter.js' %}" type="text/javascript"></script>
     </head>
     <body>
         <!-- Load app logo at the top of the page -->
@@ -17,7 +18,7 @@
                 <p><strong>{{ error_message }}</strong></p>
             {% endif %}
         </div>
-        <!-- Instructions -->
+        <!-- General instructions -->
         <div>
             <h3>Instructions:</h3>
             <ol>
@@ -27,30 +28,69 @@
                 <li>Submit through this app when you finish and your model will be checked against the expected model</li>
             </ol>
         </div>
-        <!-- Search bar to filter by question names -->
-        <div></div>
+        <!-- Search menu to filter by question names -->
+        <div>
+            <input class="search_menu" type="text" id="searchInput" onkeyup="search_filter()" placeholder="Search ..." title="Type in a question name" />
+        </div>
         <!-- Buttons to filter by difficulty levels -->
-        <div></div>
+        <div class="btn-group">
+            <div>
+                <input type="radio" name="radio" class="radio" id="all_q" onclick="search_filter()" checked />
+                <label for="all_q">All</label>
+            </div>
+            <div>
+                <input type="radio" name="radio" class="radio" id="easy_q" onclick="search_filter()" />
+                <label for="easy_q">Easy</label>
+            </div>
+            <div>
+                <input type="radio" name="radio" class="radio" id="med_q" onclick="search_filter()" />
+                <label for="med_q">Medium</label>
+            </div>
+            <div>
+                <input type="radio" name="radio" class="radio" id="hard_q" onclick="search_filter()" />
+                <label for="hard_q">Challenging</label>
+            </div>
+        </div>
+        <br /><br />
         <!-- List all available questions -->
         <section id="menu">
-            <!-- Present every document as an accordion-->
             {% for question in questions %}
-                <button class="accordion">
-                    <img src="{{ question.thumbnail }}" alt="" /> 
-                    <h3>&nbsp;&nbsp;{{ question.question_name }}</h3>
-                </button>
-                <div class="panel">
-                    {% if question.additional_instructions %}
-                        <p>{{ question.additional_instructions }}</p>
-                    {% endif %}
-                    <ul>
-                        <li>Difficulty: {{ question.difficulty }}</li>
-                        <li>Number of people completed: {{ question.completion_count }}</li>
-                    </ul>
+                <div class="question"> 
+                    <!-- Present every document as an accordion-->
+                    <button class="accordion">
+                        <img src="{{ question.thumbnail }}" alt="" /> 
+                        <h3>&nbsp;&nbsp;&nbsp;&nbsp;{{ question.question_name }}</h3>
+                    </button>
+                    <div class="panel">
+                        <ul>
+                            <!-- Update difficulty_filter.js if changing <li> here -->
+                            {% if question.difficulty == 1 %}
+                                <li class="difficulty">Difficulty: Easy</li>
+                            {% elif question.difficulty == 2 %}
+                                <li class="difficulty">Difficulty: Medium</li>
+                            {% elif question.difficulty == 3 %}
+                                <li class="difficulty">Difficulty: Challenging</li>
+                            {% else %}
+                                <li class="difficulty">Difficulty: Unclassified</li>
+                            {% endif %}
+                            <li>Number of users completed: {{ question.completion_count }}</li>
+                        </ul>
+                        <!-- Button to start the question -->
+                        {% if question.question_id in user.completed_history %}
+                            <p>You have completed this question before ...</p>
+                            <form action="{% url 'questioner:model' question.question_id user.os_user_id %}">
+                                <input type="submit" value="Retry this question"/>
+                            </form>
+                        {% else %}
+                            <form action="{% url 'questioner:model' question.question_id user.os_user_id %}">
+                                <input type="submit" value="Start this question"/>
+                            </form>
+                        {% endif %}
+                    </div>
                 </div>
             {% endfor %}
         </section>
-        <!-- Load function for accordion -->
+        <!-- Enable hide-and-show for accordions -->
         <script src="{% static 'questioner/accordion.js' %}" type="text/javascript"></script>
     </body>
 </html>

@@ -262,12 +262,3 @@ def complete(request: HttpRequest, question_id: str, os_user_id: str):
             "question": curr_que
         }
     )
-
-
-def test_page(request: HttpRequest): 
-    return render(
-        request, "questioner/index.html", 
-        context={
-            "questions": Question.objects.filter(published=True).order_by("question_name")
-        }
-    )
