@@ -1,10 +1,17 @@
+import io 
 import os 
+import base64
 import datetime 
 import requests
 
+import numpy as np 
+import matplotlib.pyplot as plt 
+from matplotlib.figure import Figure 
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, FileResponse
 from django.utils import timezone 
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
@@ -45,6 +52,7 @@ def login(request: HttpRequest):
     user.did = request.GET.get('did')
     user.wid = request.GET.get('wvmid')
     user.eid = request.GET.get('eid')
+    user.save() 
 
     return redirect(
         os.path.join(
@@ -114,7 +122,7 @@ def index(request: HttpRequest, os_user_id: str):
     )
 
 
-def model(request: HttpRequest, question_id: str, os_user_id: str): 
+def model(request: HttpRequest, question_id: int, os_user_id: str): 
     """ The view that the users see when working on a question. 
     It provides all necessary information and instructions for the 
     question. When the user finishes, they should be able to submit 
@@ -147,9 +155,15 @@ def model(request: HttpRequest, question_id: str, os_user_id: str):
             )
     else: 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
+    
+    # Okay to start modelling 
+    curr_user.modelling = True 
+    curr_user.last_start = timezone.now() 
+    curr_user.curr_question = curr_que.question_id 
+    curr_user.save() 
 
     return render(
-        request, "questioner/model.html", 
+        request, "questioner/modelling.html", 
         context={
             "user": curr_user, 
             "question": curr_que
@@ -157,7 +171,7 @@ def model(request: HttpRequest, question_id: str, os_user_id: str):
     )
 
 
-def check_model(request: HttpRequest, question_id: str, os_user_id: str): 
+def check_model(request: HttpRequest, question_id: int, os_user_id: str): 
     """ When a user submits a model, API calls are made to check if the 
     model is dimensionally correct and placed in proper orientation. 
     If the model is correct, redirect to the complete page. 
@@ -179,18 +193,13 @@ def check_model(request: HttpRequest, question_id: str, os_user_id: str):
     )
     if response.ok: 
         response = response.json() 
-        ref_model = [
-            curr_que.model_mass, curr_que.model_volume, curr_que.model_SA, 
-            curr_que.model_COM_x, curr_que.model_COM_y, curr_que.model_COM_z
-        ]
+        ref_model = [curr_que.model_mass, curr_que.model_volume, curr_que.model_SA]
         user_model = [
             response['bodies']['-all-']['mass'][0], 
             response['bodies']['-all-']['volume'][0], 
-            response['bodies']['-all-']['periphery'][0], 
-            response['bodies']['-all-']['centroid'][0], 
-            response['bodies']['-all-']['centroid'][1], 
-            response['bodies']['-all-']['centroid'][2]
+            response['bodies']['-all-']['periphery'][0]
         ]
+        symbols = []
         # Evaluate model correctness 
         check_pass = True 
         err_allowance = 0.01
@@ -200,13 +209,36 @@ def check_model(request: HttpRequest, question_id: str, os_user_id: str):
                 user_model[i] > item * (1 + err_allowance)
             ): 
                 check_pass = False
-            ref_model[i] = round(ref_model[i], 2)
-            user_model[i] = round(user_model[i], 2)
+                symbols.append("&#x2717;")
+            else: 
+                symbols.append("&#x2713;")
+            # Round for display 
+            if item < 1: 
+                ref_model[i] = round(ref_model[i], 3)
+                user_model[i] = round(user_model[i], 3)
+            else: 
+                ref_model[i] = round(ref_model[i], 2)
+                user_model[i] = round(user_model[i], 2)
         
         if check_pass: 
             # Model is correct and the task is completed 
+            curr_user.modelling = False 
             curr_que.completion_count += 1
-            curr_user.completed_history.append(curr_que.question_id)
+            time_spent = (
+                timezone.now() - curr_user.last_start
+            ).total_seconds() / 60  # in minutes 
+            curr_que.completion_time.append(time_spent)
+            if curr_que.question_id in curr_user.completed_history: 
+                curr_user.completed_history[curr_que.question_id].append(
+                    (timezone.now(), time_spent)
+                )
+            else: 
+                curr_user.completed_history[curr_que.question_id] = [
+                    (timezone.now(), time_spent)
+                ]
+            curr_user.save() 
+            curr_que.save() 
+
             return HttpResponseRedirect(reverse(
                 "questioner:complete", args=[
                     curr_que.question_id, curr_user.os_user_id
@@ -220,6 +252,7 @@ def check_model(request: HttpRequest, question_id: str, os_user_id: str):
                     <th>Properties</th>
                     <th>Expected Values</th>
                     <th>Actual Values</th>
+                    <th>Check</th>
                 </tr>
             '''
             prop_name = [
@@ -232,11 +265,12 @@ def check_model(request: HttpRequest, question_id: str, os_user_id: str):
                     <td>{item}</td>
                     <td>{ref_model[i]}</td>
                     <td>{user_model[i]}</td>
+                    <td>{symbols[i]}</td>
                 </tr>
                 '''
             fail_message += "</table>" 
             return render(
-                request, "questioner/model.html", 
+                request, "questioner/modelling.html", 
                 context={
                     "user": curr_user, 
                     "question": curr_que, 
@@ -247,7 +281,7 @@ def check_model(request: HttpRequest, question_id: str, os_user_id: str):
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
 
 
-def complete(request: HttpRequest, question_id: str, os_user_id: str): 
+def complete(request: HttpRequest, question_id: int, os_user_id: str): 
     """ THe view that the users see when a question is finished. 
     It provides a brief summary of the user's performance and relative 
     comparisons to all other users. Users should be able to return to 
@@ -255,10 +289,59 @@ def complete(request: HttpRequest, question_id: str, os_user_id: str):
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     curr_que = get_object_or_404(Question, question_id=question_id)
+
+    my_time = curr_user.completed_history[curr_que.question_id][-1][1] 
+
+    # Plot a histogram of time spent if there are more than 10 completions 
+    img_data = ""
+    if curr_que.completion_count >= 10: 
+        all_time = list(curr_que.completion_time)
+        mean_time = np.mean(all_time)
+        
+        fig = Figure() 
+        ax = fig.add_subplot(1, 1, 1)
+        ax.hist(all_time)
+        
+        patches = ax.patches
+        for patch in list(reversed(patches)): 
+            if patch.get_x() <= my_time and patch.get_x() + patch.get_width() >= my_time: 
+                # Mark where the user is at
+                ax.text(
+                    patch.get_x() + patch.get_width() / 2, 
+                    patch.get_height() + 0.1, 
+                    "You", ha="center", va="bottom"
+                )
+                break 
+
+        ax.axvline(mean_time, ls='--', c='k', label="Average")
+
+        ax.set_xlabel("Time Spent to Complete This Question (mins)")
+        ax.set_ylabel("Number of Users")
+        ax.legend() 
+
+        img_output = io.BytesIO() 
+        FigureCanvasAgg(fig).print_png(img_output)
+        img_output.seek(0)
+        img_data = base64.b64encode(img_output.read())
+        img_data = "data:image/png;base64," + str(img_data)[2:-1]
+
     return render(
         request, "questioner/complete.html", 
         context={
             "user": curr_user, 
-            "question": curr_que
+            "question": curr_que, 
+            "user_time": my_time, 
+            "stats_img": img_data 
         }
     )
+
+
+def show_pdf(request: HttpRequest, file_name: str): 
+    """ This view opens and renders a PDF file 
+    (i.e., the CAD drawing)
+    """
+    return FileResponse(
+        open("drawings/{}.pdf".format(file_name), 'rb'), 
+        content_type="application/pdf"
+    )
+

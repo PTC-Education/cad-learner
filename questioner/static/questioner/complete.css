@@ -1,0 +1,21 @@
+/* Style the statistics image */ 
+img {
+    width: 80%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+/* Style the submit button to return home */ 
+input[type=submit] {
+    padding: 10px 10px;
+    cursor: pointer;
+    background-color: #ddd;
+    border: 0 none;
+    border-radius: 5px;
+    margin-bottom: 1em;
+}
+
+input[type=submit]:hover {
+    background-color: #bbb;
+}

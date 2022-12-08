@@ -21,7 +21,12 @@ class AuthUser(models.Model):
     modelling = models.BooleanField(default=False)
     last_start = models.DateTimeField(null=True) # only if modelling 
     curr_question = models.CharField(max_length=400, null=True) # only if modelling 
-    completed_history = models.JSONField(default=list)
+    completed_history = models.JSONField(default=dict)
+    """
+    completed_history = Dict[
+        question_id: List[Tuple[completion_datetime, time_taken]]
+    ]
+    """
 
     def refresh_oauth_token(self) -> None: 
         response = requests.post(
@@ -87,6 +92,9 @@ class Question(models.Model):
     ) 
     completion_count = models.PositiveIntegerField(
         default=0, help_text="The number of times this question is completed by users"
+    )
+    completion_time = models.JSONField(
+        default=list, help_text="List of completion time by users in history"
     )
 
     # Admin-specified parameters for the question 

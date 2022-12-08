@@ -78,11 +78,11 @@
                         <!-- Button to start the question -->
                         {% if question.question_id in user.completed_history %}
                             <p>You have completed this question before ...</p>
-                            <form action="{% url 'questioner:model' question.question_id user.os_user_id %}">
+                            <form action="{% url 'questioner:modelling' question.question_id user.os_user_id %}">
                                 <input type="submit" value="Retry this question"/>
                             </form>
                         {% else %}
-                            <form action="{% url 'questioner:model' question.question_id user.os_user_id %}">
+                            <form action="{% url 'questioner:modelling' question.question_id user.os_user_id %}">
                                 <input type="submit" value="Start this question"/>
                             </form>
                         {% endif %}

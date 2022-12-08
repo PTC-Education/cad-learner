@@ -8,11 +8,12 @@ from .models import Question
 # Register your models here.
 class QuestionsAdmin(admin.ModelAdmin): 
     list_display = [
-        'question_name', 'difficulty', 'completion_count', 'published'
+        'question_name', 'difficulty', 'published'
     ]
     readonly_fields = [
         'model_mass', 'model_volume', 'model_SA', 'model_COM_x', 
-        'model_COM_y', 'model_COM_z', 'published'
+        'model_COM_y', 'model_COM_z', 'published', 
+        'completion_count', 'completion_time'
     ]
     exclude = ['thumbnail']
     search_fields = ['question_name', 'cad_drawing']

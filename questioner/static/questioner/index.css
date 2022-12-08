@@ -74,8 +74,9 @@
     font-size: 2em;
     font-weight: bold;
     color: #777; 
-    position: absolute; 
+    position: absolute;  
     right: 5%;
+    margin-top: 10px;
 }
 
 .active:after {

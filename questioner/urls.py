@@ -6,7 +6,8 @@ urlpatterns = [
     path('oauthSignin/', views.login, name='login'), 
     path('oauthRedirect/', views.authorize, name='authorize'), 
     path('index/<str:os_user_id>/', views.index, name='index'), 
-    path('modelling/<str:question_id>/<str:os_user_id>/', views.model, name='model'), 
-    path('check/<str:question_id>/<str:os_user_id>/', views.check_model, name="check"), 
-    path('complete/<str:question_id>/<str:os_user_id>/', views.complete, name="complete") 
+    path('modelling/<int:question_id>/<str:os_user_id>/', views.model, name='modelling'), 
+    path('show_pdf/<str:file_name>/', views.show_pdf, name="show_pdf"), 
+    path('check/<int:question_id>/<str:os_user_id>/', views.check_model, name="check"), 
+    path('complete/<int:question_id>/<str:os_user_id>/', views.complete, name="complete")
 ]

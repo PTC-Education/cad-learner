@@ -1,0 +1,26 @@
+/* Style the table to show model properties */ 
+table {
+    text-align: left;
+    width: 100%;
+    border-top: 1px solid;
+    border-bottom: 1px solid;
+}
+
+th {
+    border-bottom: 1px solid;
+    border-collapse: collapse;
+}
+
+/* Style the submit button for evaluation */ 
+input[type=submit] {
+    padding: 10px 10px;
+    cursor: pointer;
+    background-color: #ddd;
+    border: 0 none;
+    border-radius: 5px;
+    margin-bottom: 1em;
+}
+
+input[type=submit]:hover {
+    background-color: #bbb;
+}

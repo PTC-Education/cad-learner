@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'questioner/modelling.css' %}">
+    </head>
+    <body>
+        <h2>{{ question.question_name }}</h2>
+        <img src="{{ question.thumbnail }}" width="20%"/>
+        <p><a href="{% url 'questioner:show_pdf' question.cad_drawing %}" target="_blank" rel="noopener noreferrer">View CAD drawings here ...</a></p>
+        <!-- If submission failed (model incorrect) -->
+        <div>
+            {% if fail_message %}
+                <!-- Print out model comparison table -->
+                {{ fail_message |safe }}
+                <br /><br />
+                <!-- Buttom to allow re-submission-->
+                <form action="{% url 'questioner:check' question.question_id user.os_user_id %}">
+                    <input type="submit" value="Re-submit for evaluation"/>
+                </form>
+            {% else %}
+                <form action="{% url 'questioner:check' question.question_id user.os_user_id %}">
+                    <input type="submit" value="Submit for evaluation"/>
+                </form>
+            {% endif %}
+        </div>
+    </body>
+</html>
