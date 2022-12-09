@@ -87,7 +87,7 @@ class Question(models.Model):
     # Drawing needs to be first saved in the drawings directory
     cad_drawing = models.CharField(
         "File name of CAD drawing", 
-        max_length=200, null=True, 
+        max_length=200, null=True, unique=True, 
         help_text="Insert single PDF file in GitHub repository and enter file name here (without .pdf suffix)"
     ) 
     completion_count = models.PositiveIntegerField(
@@ -103,7 +103,7 @@ class Question(models.Model):
         help_text="A unique name for the question that will be displayed to the users"
     )
     additional_instructions = models.TextField(
-        null=True, default=None, 
+        null=True, default=None, blank=True, 
         help_text="(Opitonal) additional instructions for users"
     )
     difficulty = models.PositiveIntegerField(
@@ -115,9 +115,6 @@ class Question(models.Model):
     model_mass = models.FloatField(null=True)
     model_volume = models.FloatField(null=True)
     model_SA = models.FloatField(null=True, help_text="Surface area")
-    model_COM_x = models.FloatField(null=True, help_text="Center of mass (x-axis)")
-    model_COM_y = models.FloatField(null=True, help_text="Center of mass (y-axis)")
-    model_COM_z = models.FloatField(null=True, help_text="Center of mass (z-axis)")
 
     # This boolean indicates when the system check is passed 
     published = models.BooleanField(
@@ -134,8 +131,7 @@ class Question(models.Model):
             # Check if necessary information is present and PDF is linked 
             if (
                 self.question_name and self.cad_drawing and self.thumbnail and 
-                self.model_mass and self.model_volume and self.model_SA and 
-                self.model_COM_x and self.model_COM_y and self.model_COM_z
+                self.model_mass and self.model_volume and self.model_SA
             ) and (
                 os.path.isfile("drawings/{}.pdf".format(self.cad_drawing))
             ): 
@@ -187,16 +183,10 @@ class Question(models.Model):
             self.model_mass = response['bodies']['-all-']['mass'][0]
             self.model_volume = response['bodies']['-all-']['volume'][0]
             self.model_SA = response['bodies']['-all-']['periphery'][0]
-            self.model_COM_x = response['bodies']['-all-']['centroid'][0]
-            self.model_COM_y = response['bodies']['-all-']['centroid'][1]
-            self.model_COM_z = response['bodies']['-all-']['centroid'][2]
         else: 
             self.model_mass = None 
             self.model_volume = None
             self.model_SA = None
-            self.model_COM_x = None
-            self.model_COM_y = None
-            self.model_COM_z = None
 
         self.save() 
         return None 

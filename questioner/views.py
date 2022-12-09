@@ -256,8 +256,7 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
                 </tr>
             '''
             prop_name = [
-                "Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", 
-                "Center of Mass_x (m)", "Center of Mass_y (m)", "Center of Mass_z (m)"
+                "Mass (kg)", "Volume (m^3)", "Surface Area (m^2)"
             ]
             for i, item in enumerate(prop_name): 
                 fail_message += f'''
@@ -344,4 +343,3 @@ def show_pdf(request: HttpRequest, file_name: str):
         open("drawings/{}.pdf".format(file_name), 'rb'), 
         content_type="application/pdf"
     )
-
