@@ -21,6 +21,8 @@ class AuthUser(models.Model):
     modelling = models.BooleanField(default=False)
     last_start = models.DateTimeField(null=True) # only if modelling 
     curr_question = models.CharField(max_length=400, null=True) # only if modelling 
+    start_microversion_id = models.CharField(max_length=30, null=True) # only if modelling 
+    
     completed_history = models.JSONField(default=dict)
     """
     completed_history = Dict[

@@ -24,7 +24,7 @@ def login(request: HttpRequest):
     """ When the app extension is first opened, this view should 
     be called. 
     -   If user is within the allowed modelling time span, redirects 
-        to the modelling page 
+        to the modelling page to continue 
     -   If new user, redirects the user to initiate Onshape's OAuth
         authorization 
     """
@@ -37,15 +37,18 @@ def login(request: HttpRequest):
         # Check if user is modelling 
         if (
             user.modelling and 
-            user.last_start + datetime.timedelta(minutes=90) < timezone.now() and 
+            user.last_start + datetime.timedelta(hours=1) < timezone.now() and 
             user.eid == request.GET.get('eid')
         ): 
+            # Refresh token if needed 
             if user.expires_at < timezone.now + datetime.timedelta(hours=1): 
                 user.refresh_oauth_token() 
+            # Redirect to modelling page 
             return HttpResponseRedirect(reverse(
                 "questioner:modelling", args=[user.curr_question, user.os_user_id]
             )) 
     except ObjectDoesNotExist: 
+        # Create a new user 
         user = AuthUser(os_user_id=user_id)
     
     user.os_domain = request.GET.get('server')
@@ -160,6 +163,24 @@ def model(request: HttpRequest, question_id: int, os_user_id: str):
     curr_user.modelling = True 
     curr_user.last_start = timezone.now() 
     curr_user.curr_question = curr_que.question_id 
+
+    # Get current microversion ID 
+    response = requests.get(
+        "{}/api/documents/d/{}/w/{}/currentmicroversion".format(
+            curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization": "Bearer " + curr_user.access_token
+        }
+    )
+    if response.ok: 
+        response = response.json() 
+        curr_user.start_microversion_id = response['microversion']
+    else: 
+        curr_user.start_microversion_id = None 
+
     curr_user.save() 
 
     return render(
@@ -308,7 +329,7 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
                 ax.text(
                     patch.get_x() + patch.get_width() / 2, 
                     patch.get_height() + 0.1, 
-                    "You", ha="center", va="bottom"
+                    "Me", ha="center", va="bottom"
                 )
                 break 
 
