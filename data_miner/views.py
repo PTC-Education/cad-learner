@@ -2,12 +2,20 @@ import datetime
 import requests 
 from typing import List, Dict
 
+from rq import Queue 
+from worker import conn
+
 from django.shortcuts import get_object_or_404
 from django.http import HttpRequest
 from django.utils import timezone
 
 from questioner.models import AuthUser, Question
 from .models import HistoryData
+
+
+# The RQ queue that processes all time-consuming data mining operations 
+# in the background 
+q = Queue(connection=conn)
 
 # Create your views here.
 def get_process_data(data_entry: HistoryData, user: AuthUser, q_info: List[str]): 
@@ -282,6 +290,8 @@ def collect_data(request: HttpRequest, os_user_id: str):
     ]
     data_entry.save() 
 
-    get_process_data(data_entry, curr_user, query_info)
-    get_product_data(data_entry, curr_user, query_info)
+    # Send the following two time-consuming jobs to the RQ queue 
+    q.enqueue(get_process_data, args=[data_entry, curr_user, query_info])
+    q.enqueue(get_product_data, args=[data_entry, curr_user, query_info])
+    
     return None 
