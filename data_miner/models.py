@@ -12,3 +12,10 @@ class HistoryData(models.Model):
     fs_representation = models.JSONField(default=dict, null=True)
     shaded_views = models.JSONField(default=list, null=True)
     mesh_data = models.JSONField(default=list, null=True)
+
+    # Since all design data are queried in the background after a task 
+    # is completed, the time a user completes the task and the time the 
+    # app completes all the data retrieval are likely different. 
+    # This field tracks the latter time for open-sourced database update 
+    # purpose. 
+    query_complete_time = models.DateTimeField(default=None, null=True)
