@@ -276,19 +276,22 @@ def collect_data(request: HttpRequest, os_user_id: str):
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     curr_que = Question.objects.get(question_id=curr_user.curr_question)
     
+    completion_data = curr_user.completed_history[curr_que.question_id][-1]
+
     data_entry = HistoryData(
         os_user_id=os_user_id, 
         question_name=curr_que.question_name, 
-        completion_time=timezone.now(), 
-        num_attempt=len(curr_user.completed_history[curr_que])
+        completion_time=datetime.datetime.fromisoformat(completion_data[0]), 
+        time_spent=completion_data[1], 
+        num_attempt=len(curr_user.completed_history[curr_que.question_id])
     )
+    data_entry.save() 
     
     # [domain, did, begin_mid, end_mid, eid]
     query_info = [
         curr_user.os_domain, curr_user.did, curr_user.start_microversion_id, 
         curr_user.end_microversion_id, curr_user.eid
     ]
-    data_entry.save() 
 
     # Send the following two time-consuming jobs to the RQ queue 
     q.enqueue(get_process_data, args=[data_entry, curr_user, query_info])

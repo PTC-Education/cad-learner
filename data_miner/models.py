@@ -6,6 +6,7 @@ class HistoryData(models.Model):
     question_name = models.CharField(max_length=400, default=None)
     completion_time = models.DateTimeField(auto_now=True)
     num_attempt = models.IntegerField(default=0)
+    time_spent = models.FloatField(default=0.0)
 
     microversions = models.JSONField(default=list, null=True)
     feature_list = models.JSONField(default=dict, null=True)
