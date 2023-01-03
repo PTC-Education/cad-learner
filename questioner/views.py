@@ -241,30 +241,27 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
                 ref_model[i] = round(ref_model[i], 2)
                 user_model[i] = round(user_model[i], 2)
         
-        if check_pass: 
-            # Model is correct and the task is completed 
-            curr_user.modelling = False 
-            curr_que.completion_count += 1
-            time_spent = (
-                timezone.now() - curr_user.last_start
-            ).total_seconds() / 60  # in minutes 
-            curr_que.completion_time.append(time_spent)
-            if str(curr_que.question_id) in curr_user.completed_history: 
-                curr_user.completed_history[str(curr_que.question_id)].append(
-                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent))
+        if check_pass: # Model is geometrically correct at this point 
+            # Check if there is derived feature imported 
+            response = requests.get(
+                "{}/api/partstudios/d/{}/w/{}/e/{}/features".format(
+                    curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
+                ), 
+                headers={
+                    "Content-Type": "application/json", 
+                    "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+                    "Authorization": "Bearer " + curr_user.access_token
+                }
+            )
+            if response.ok: 
+                feature_cnt = len(response['features'])
+                response = response.json() 
+                for fea in response['features']: 
+                    if fea['featureType'] == "importDerived": 
+                        check_pass = False 
             else: 
-                curr_user.completed_history[str(curr_que.question_id)] = [
-                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent)
-                ]
-            curr_user.save() 
-            curr_que.save() 
-            print(curr_user.completed_history)
-            return HttpResponseRedirect(reverse(
-                "questioner:complete", args=[
-                    curr_que.question_id, curr_user.os_user_id
-                ]
-            ))
-        else: 
+                return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
+        else: # Model is geometrically incorrect 
             # Build an HTML table to show the difference 
             fail_message = '''
             <table>
@@ -296,6 +293,62 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
                     "model_comparison": fail_message
                 }
             )
+        
+        if check_pass: # Model is correct with no derived featuers and the task is completed 
+            # Log the current (the last) microversion 
+            response = requests.get(
+                "{}/api/partstudios/d/{}/w/{}/currentmicroversion".format(
+                    curr_user.os_domain, curr_user.did, curr_user.wid
+                ), 
+                headers={
+                    "Content-Type": "application/json", 
+                    "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+                    "Authorization": "Bearer " + curr_user.access_token
+                }
+            )
+            if response.ok: 
+                response = response.json() 
+                curr_user.end_microversion_id = response['microversion']
+                curr_user.save() 
+            else: 
+                curr_user.end_microversion_id = None
+                curr_user.save() 
+
+            # Record historic information in the question model 
+            curr_que.completion_count += 1
+            time_spent = (
+                timezone.now() - curr_user.last_start
+            ).total_seconds() / 60  # in minutes 
+            curr_que.completion_time.append(time_spent)
+            curr_que.completion_feature_cnt.append(feature_cnt)
+            curr_que.save() 
+
+            # Record/update information in the user model 
+            curr_user.modelling = False 
+            if str(curr_que.question_id) in curr_user.completed_history: 
+                curr_user.completed_history[str(curr_que.question_id)].append(
+                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent, feature_cnt))
+            else: 
+                curr_user.completed_history[str(curr_que.question_id)] = [
+                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent, feature_cnt)
+                ]
+            curr_user.save() 
+
+            return HttpResponseRedirect(reverse(
+                "questioner:complete", args=[
+                    curr_que.question_id, curr_user.os_user_id
+                ]
+            ))
+        else: # The model is geometrically correct but contains derived features 
+            fail_message = "Your model matches the reference model geometrically, but the feature list contains import derived features. Please complete the task with native Onshape features only and resubmit for evaluation ..."
+            return render(
+                request, "questioner/modelling.html", 
+                context={
+                    "user": curr_user, 
+                    "question": curr_que, 
+                    "model_comparison": fail_message
+                }
+            )
     else: 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
 
@@ -310,10 +363,11 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
     curr_que = get_object_or_404(Question, question_id=question_id)
 
     my_time = curr_user.completed_history[str(curr_que.question_id)][-1][1] 
+    my_feature_cnt = curr_user.completed_history[str(curr_que.question_id)][-1][2] 
 
     # Plot a histogram of time spent if there are more than 10 completions 
-    img_data = ""
-    if curr_que.completion_count >= 10: 
+    img_data_time = ""
+    if curr_que.completion_time >= 10: 
         all_time = list(curr_que.completion_time)
         mean_time = np.mean(all_time)
         
@@ -341,15 +395,51 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
         img_output = io.BytesIO() 
         FigureCanvasAgg(fig).print_png(img_output)
         img_output.seek(0)
-        img_data = base64.b64encode(img_output.read())
-        img_data = "data:image/png;base64," + str(img_data)[2:-1]
+        img_data_time = base64.b64encode(img_output.read())
+        img_data_time = "data:image/png;base64," + str(img_data_time)[2:-1]
+    
+    # Plot a histogram of feature counts if there are more than 10 completions 
+    img_data_cnt = ""
+    if curr_que.completion_feature_cnt >= 10: 
+        all_cnt = list(curr_que.completion_feature_cnt)
+        mean_time = np.mean(all_cnt)
+        
+        fig = Figure() 
+        ax = fig.add_subplot(1, 1, 1)
+        ax.hist(all_cnt)
+        
+        patches = ax.patches
+        for patch in list(reversed(patches)): 
+            if patch.get_x() <= my_feature_cnt and patch.get_x() + patch.get_width() >= my_feature_cnt: 
+                # Mark where the user is at
+                ax.text(
+                    patch.get_x() + patch.get_width() / 2, 
+                    patch.get_height() + 0.1, 
+                    "Me", ha="center", va="bottom"
+                )
+                break 
+
+        ax.axvline(mean_time, ls='--', c='k', label="Average")
+
+        ax.set_xlabel("Number of Features Used to Complete This Question (mins)")
+        ax.set_ylabel("Number of Users")
+        ax.legend() 
+
+        img_output = io.BytesIO() 
+        FigureCanvasAgg(fig).print_png(img_output)
+        img_output.seek(0)
+        img_data_cnt = base64.b64encode(img_output.read())
+        img_data_cnt = "data:image/png;base64," + str(img_data_cnt)[2:-1]
 
     return render(
         request, "questioner/complete.html", 
         context={
             "user": curr_user, 
             "question": curr_que, 
-            "user_time": my_time, 
-            "stats_img": img_data 
+            "time_min": int(my_time), 
+            "time_sec": int(divmod(my_time)[1] * 60), 
+            "fea_cnt": int(my_feature_cnt), 
+            "stats_img_time": img_data_time, 
+            "stats_img_cnt": img_data_cnt
         }
     )

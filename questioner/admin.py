@@ -8,14 +8,14 @@ from .models import Question
 # Register your models here.
 class QuestionsAdmin(admin.ModelAdmin): 
     list_display = [
-        'question_name', 'difficulty', 'published'
+        'question_id', 'question_name', 'difficulty', 'published'
     ]
     readonly_fields = [
         'model_mass', 'model_volume', 'model_SA', 'published', 
         'completion_count', 'drawing_jpeg'
     ]
-    exclude = ['thumbnail', 'completion_time']
-    search_fields = ['question_name', 'cad_drawing']
+    exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt']
+    search_fields = ['question_name']
     actions = ['publish_question', 'update_model']
 
     @admin.action(description="Publish/Hide questions")

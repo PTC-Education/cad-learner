@@ -7,16 +7,20 @@
     <body>
         <h2>Congratulations!</h2>
         <p>Your Onshape CAD model matches all expected values from the reference model.</p> 
-        <p>You completed the model "{{ question.question_name }}" within {{ user_time }} minutes.</p>
+        <p>You completed the model "{{ question.question_name }}" in {{ time_min }} minutes and {{ time_sec }} seconds with {{ fea_cnt }} features.</p>
         <!-- Return to the home page -->
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>
         </form>
         <br /><br />
-        <!-- Show statistical comparison if available -->
-        {% if stats_img %} 
+        <!-- Show statistical comparison on time spent if available -->
+        {% if stats_img_time %} 
             <p>Take a look at how you did compared to other people who also completed this model:</p>
-            <img src="{{ stats_img }}" alt="stats"/>
+            <img src="{{ stats_img_time }}" alt="stats_time"/>
+        {% endif %} 
+        <!-- Show statistical comparison on feature count if available -->
+        {% if stats_img_cnt %} 
+            <img src="{{ stats_img_cnt }}" alt="stats_cnt"/>
         {% endif %} 
     </body>
 </html>

@@ -23,11 +23,12 @@ class AuthUser(models.Model):
     last_start = models.DateTimeField(null=True) # only if modelling 
     curr_question = models.CharField(max_length=400, null=True) # only if modelling 
     start_microversion_id = models.CharField(max_length=30, null=True) # only if modelling 
+    end_microversion_id = models.CharField(max_length=30, null=True) # only if finish modelling 
     
     completed_history = models.JSONField(default=dict)
     """
     completed_history = Dict[
-        question_id: List[Tuple[completion_datetime, time_taken]]
+        question_id: List[Tuple[completion_datetime, time_taken, feature_cnt]]
     ]
     """
 
@@ -103,6 +104,9 @@ class Question(models.Model):
     )
     completion_time = models.JSONField(
         default=list, help_text="List of completion time by users in history"
+    )
+    completion_feature_cnt = models.JSONField(
+        default=list, help_text="List of feature counts required by users in history"
     )
 
     # Admin-specified parameters for the question 
