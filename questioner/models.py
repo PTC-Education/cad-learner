@@ -1,6 +1,7 @@
 import os 
 import requests
 import datetime
+import base64
 
 from django.db import models
 from django.utils import timezone
@@ -80,18 +81,23 @@ class Question(models.Model):
         max_length=40, default=None, 
         help_text="Only relevant for initial save and model update"
     )
-    os_element_id = models.CharField(
-        "Onshape element ID", 
+    os_part_studio_id = models.CharField(
+        "Element ID of derived Part Studio", 
         max_length=40, default=None, 
         help_text="Only relevant for initial save and model update"
     )
-
-    # Drawing needs to be first saved in the drawings directory
-    cad_drawing = models.CharField(
-        "File name of CAD drawing", 
+    os_drawing_element_id = models.CharField(
+        "Element ID of the main drawing", 
         max_length=200, null=True, unique=True, 
-        help_text="Insert single PDF file in GitHub repository and enter file name here (without .pdf suffix)"
+        help_text="Element ID of the Onshape drawing that users can open in a new tab"
     ) 
+    os_drawing_jpeg_element_id = models.CharField(
+        "Element ID of a JPEG export of a drawing", 
+        max_length=200, null=True, unique=True, 
+        help_text="Export a drawing as a JPEG to the questions document and input that element ID here. Portrait rather than landscape is best."
+    ) 
+
+    # Question completion stats
     completion_count = models.PositiveIntegerField(
         default=0, help_text="The number of times this question is completed by users"
     )
@@ -114,6 +120,7 @@ class Question(models.Model):
 
     # API-retrieved info 
     thumbnail = models.TextField(null=True)
+    drawing_jpeg = models.TextField(null=True)
     model_mass = models.FloatField(null=True)
     model_volume = models.FloatField(null=True)
     model_SA = models.FloatField(null=True, help_text="Surface area")
@@ -130,13 +137,11 @@ class Question(models.Model):
         if self.published: 
             self.published = False 
         else: 
-            # Check if necessary information is present and PDF is linked 
+            # Check if necessary information is present
             if (
-                self.question_name and self.cad_drawing and self.thumbnail and 
-                self.model_mass and self.model_volume and self.model_SA
-            ) and (
-                os.path.isfile("drawings/{}.pdf".format(self.cad_drawing))
-            ): 
+                self.question_name and self.os_drawing_element_id and self.drawing_jpeg and 
+                self.thumbnail and self.model_mass and self.model_volume and self.model_SA
+            ) : 
                 self.published = True 
         self.save() 
         return None 
@@ -148,7 +153,7 @@ class Question(models.Model):
         # Get thumbnail 
         response = requests.get(
             "https://cad.onshape.com/api/partstudios/d/{}/w/{}/e/{}/shadedviews".format(
-                self.os_doc_id, self.os_workspace_id, self.os_element_id
+                self.os_doc_id, self.os_workspace_id, self.os_part_studio_id
             ), 
             params={
                 "outputHeight": 60, 
@@ -169,10 +174,28 @@ class Question(models.Model):
         else: 
             self.thumbnail = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAy0lEQVRIie2VXQ6CMBCEP7yDXkEjeA/x/icQgrQcAh9czKZ0qQgPRp1kk4ZZZvYnFPhjJi5ABfRvRgWUUwZLxIe4asEsMOhndmzhqbtZSdDExxh0EhacRBIt46V5oJDwEd4BuYQjscc90ATiJ8UfgFvEXPNNqotCKtEvF8HZS87wLAeOijeRTwhahsNoWmVi4pWRhLweqe4qCp1kLVUv3UX4VgtaX7IXbmsU0knuzuCz0SEwWIovvirqFTSrKbLkcZ8v+RecVyjyl3AHdAl3ObMLisAAAAAASUVORK5CYII="
 
+        # Get drawing jpeg 
+        response = requests.get(
+            "https://cad.onshape.com/api/blobelements/d/{}/w/{}/e/{}".format(
+                self.os_doc_id, self.os_workspace_id, self.os_drawing_jpeg_element_id
+            ), 
+            headers={
+                "Content-Type": "application/json", 
+                "Accept": "application/octet-stream;charset=UTF-8;qs=0.09"
+            }, 
+            auth=API_KEY
+        )
+        
+        if response.ok: 
+            response = base64.b64encode(response.content)
+            self.drawing_jpeg = f"data:image/jpeg;base64,{response.decode('ascii')}"
+        else: 
+            self.drawing_jpeg = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAy0lEQVRIie2VXQ6CMBCEP7yDXkEjeA/x/icQgrQcAh9czKZ0qQgPRp1kk4ZZZvYnFPhjJi5ABfRvRgWUUwZLxIe4asEsMOhndmzhqbtZSdDExxh0EhacRBIt46V5oJDwEd4BuYQjscc90ATiJ8UfgFvEXPNNqotCKtEvF8HZS87wLAeOijeRTwhahsNoWmVi4pWRhLweqe4qCp1kLVUv3UX4VgtaX7IXbmsU0knuzuCz0SEwWIovvirqFTSrKbLkcZ8v+RecVyjyl3AHdAl3ObMLisAAAAAASUVORK5CYII="
+
         # Get mass and geometry properties 
         response = requests.get(
             "https://cad.onshape.com/api/partstudios/d/{}/w/{}/e/{}/massproperties".format(
-                self.os_doc_id, self.os_workspace_id, self.os_element_id
+                self.os_doc_id, self.os_workspace_id, self.os_part_studio_id
             ), 
             headers={
                 "Content-Type": "application/json", 

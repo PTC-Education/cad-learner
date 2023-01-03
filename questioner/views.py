@@ -41,7 +41,7 @@ def login(request: HttpRequest):
             user.eid == request.GET.get('eid')
         ): 
             # Refresh token if needed 
-            if user.expires_at < timezone.now + datetime.timedelta(hours=1): 
+            if user.expires_at < timezone.now() + datetime.timedelta(hours=1): 
                 user.refresh_oauth_token() 
             # Redirect to modelling page 
             return HttpResponseRedirect(reverse(
@@ -153,7 +153,7 @@ def model(request: HttpRequest, question_id: int, os_user_id: str):
                 context={
                     "user": curr_user, 
                     "questions": Question.objects.order_by("question_id"), 
-                    "error_message": "Please start with a part studio and relaunch this app ..."
+                    "error_message": "Please start with an empty part studio and relaunch this app ..."
                 }
             )
     else: 
@@ -249,17 +249,16 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
                 timezone.now() - curr_user.last_start
             ).total_seconds() / 60  # in minutes 
             curr_que.completion_time.append(time_spent)
-            if curr_que.question_id in curr_user.completed_history: 
-                curr_user.completed_history[curr_que.question_id].append(
-                    (timezone.now(), time_spent)
-                )
+            if str(curr_que.question_id) in curr_user.completed_history: 
+                curr_user.completed_history[str(curr_que.question_id)].append(
+                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent))
             else: 
-                curr_user.completed_history[curr_que.question_id] = [
-                    (timezone.now(), time_spent)
+                curr_user.completed_history[str(curr_que.question_id)] = [
+                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent)
                 ]
             curr_user.save() 
             curr_que.save() 
-
+            print(curr_user.completed_history)
             return HttpResponseRedirect(reverse(
                 "questioner:complete", args=[
                     curr_que.question_id, curr_user.os_user_id
@@ -310,7 +309,7 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     curr_que = get_object_or_404(Question, question_id=question_id)
 
-    my_time = curr_user.completed_history[curr_que.question_id][-1][1] 
+    my_time = curr_user.completed_history[str(curr_que.question_id)][-1][1] 
 
     # Plot a histogram of time spent if there are more than 10 completions 
     img_data = ""
@@ -353,14 +352,4 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
             "user_time": my_time, 
             "stats_img": img_data 
         }
-    )
-
-
-def show_pdf(request: HttpRequest, file_name: str): 
-    """ This view opens and renders a PDF file 
-    (i.e., the CAD drawing)
-    """
-    return FileResponse(
-        open("drawings/{}.pdf".format(file_name), 'rb'), 
-        content_type="application/pdf"
     )

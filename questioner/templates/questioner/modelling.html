@@ -5,24 +5,36 @@
         <link rel="stylesheet" href="{% static 'questioner/modelling.css' %}">
     </head>
     <body>
-        <h2>{{ question.question_name }}</h2>
-        <img src="{{ question.thumbnail }}" width="20%"/>
-        <p><a href="{% url 'questioner:show_pdf' question.cad_drawing %}" target="_blank" rel="noopener noreferrer">View CAD drawings here ...</a></p>
         <!-- If submission failed (model incorrect) -->
-        <div>
-            {% if fail_message %}
-                <!-- Print out model comparison table -->
-                {{ fail_message |safe }}
+        {% if model_comparison %}
+            <div class="navbar">
+                <a>{{ question.question_name }}</a>
+                <form class="navbar-centered" action="{% url 'questioner:check' question.question_id user.os_user_id %}">
+                    <input type="submit" value="Re-submit"/>
+                </form>
+                <div class="navbar-right">
+                    <a href="https://cad.onshape.com/documents/{{ question.os_doc_id }}/w/{{ question.os_workspace_id }}/e/{{ question.os_drawing_element_id }}/" target="_blank" rel="noopener noreferrer">View CAD drawing</a>
+                </div>
+            </div>
+            <!-- Print out model comparison table -->
+            <div class="main">
+                {{ model_comparison |safe }}
                 <br /><br />
-                <!-- Buttom to allow re-submission-->
-                <form action="{% url 'questioner:check' question.question_id user.os_user_id %}">
-                    <input type="submit" value="Re-submit for evaluation"/>
+                <img src="{{ question.drawing_jpeg }}" width="100%"/>
+            </div>
+        {% else %}
+            <div class="navbar">
+                <a>{{ question.question_name }}</a>
+                <form class="navbar-centered" action="{% url 'questioner:check' question.question_id user.os_user_id %}">
+                    <input type="submit" value="Submit"/>
                 </form>
-            {% else %}
-                <form action="{% url 'questioner:check' question.question_id user.os_user_id %}">
-                    <input type="submit" value="Submit for evaluation"/>
-                </form>
-            {% endif %}
-        </div>
+                <div class="navbar-right">
+                <a href="https://cad.onshape.com/documents/{{ question.os_doc_id }}/w/{{ question.os_workspace_id }}/e/{{ question.os_drawing_element_id }}/" target="_blank" rel="noopener noreferrer">View CAD drawing</a>
+                </div>
+            </div>
+            <div class="main">
+                <img src="{{ question.drawing_jpeg }}" width="100%"/>
+            </div>
+        {% endif %}
     </body>
 </html>
