@@ -254,8 +254,8 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
                 }
             )
             if response.ok: 
-                feature_cnt = len(response['features'])
                 response = response.json() 
+                feature_cnt = len(response['features'])
                 for fea in response['features']: 
                     if fea['featureType'] == "importDerived": 
                         check_pass = False 
@@ -367,7 +367,7 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
 
     # Plot a histogram of time spent if there are more than 10 completions 
     img_data_time = ""
-    if curr_que.completion_time >= 10: 
+    if len(curr_que.completion_time) >= 10: 
         all_time = list(curr_que.completion_time)
         mean_time = np.mean(all_time)
         
@@ -400,7 +400,7 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
     
     # Plot a histogram of feature counts if there are more than 10 completions 
     img_data_cnt = ""
-    if curr_que.completion_feature_cnt >= 10: 
+    if len(curr_que.completion_feature_cnt) >= 10: 
         all_cnt = list(curr_que.completion_feature_cnt)
         mean_time = np.mean(all_cnt)
         
@@ -437,7 +437,7 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
             "user": curr_user, 
             "question": curr_que, 
             "time_min": int(my_time), 
-            "time_sec": int(divmod(my_time)[1] * 60), 
+            "time_sec": int(divmod(my_time,1)[1]*60), 
             "fea_cnt": int(my_feature_cnt), 
             "stats_img_time": img_data_time, 
             "stats_img_cnt": img_data_cnt
