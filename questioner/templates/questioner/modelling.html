@@ -4,7 +4,7 @@
         {% load static %}
         <link rel="stylesheet" href="{% static 'questioner/modelling.css' %}">
         <script type="text/javascript">
-            function confirm_alert(node) {
+            function confirm_alert() {
                 return confirm("Warning, your modeling time will be reset and you will need to restart the challenge. To return to the home page click OK.");
             }
         </script>
@@ -13,7 +13,7 @@
         <!-- If submission failed (model incorrect) -->
         {% if model_comparison %}
             <div class="navbar">
-                <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert(this)">Back to Home</a>
+                <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a>
                 <form class="navbar-centered" action="{% url 'questioner:check' question.question_id user.os_user_id %}">
                     <input type="submit" value="Re-submit"/>
                 </form>
@@ -29,7 +29,7 @@
             </div>
         {% else %}
             <div class="navbar">
-                <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert(this)">Back to Home</a>
+                <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a>
                 <form class="navbar-centered" action="{% url 'questioner:check' question.question_id user.os_user_id %}">
                     <input type="submit" value="Submit"/>
                 </form>
