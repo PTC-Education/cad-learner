@@ -421,7 +421,7 @@ def complete(request: HttpRequest, question_id: int, os_user_id: str):
 
         ax.axvline(mean_time, ls='--', c='k', label="Average")
 
-        ax.set_xlabel("Number of Features Used to Complete This Question (mins)")
+        ax.set_xlabel("Number of Features Used to Complete This Question")
         ax.set_ylabel("Number of Users")
         ax.legend() 
 
