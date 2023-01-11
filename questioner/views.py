@@ -214,6 +214,18 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
     )
     if response.ok: 
         response = response.json() 
+        try:
+            response['bodies']['-all-']
+        except:
+            fail_message = "No parts found - please model the part then try re-submitting." 
+            return render(
+                request, "questioner/modelling.html", 
+                context={
+                    "user": curr_user, 
+                    "question": curr_que, 
+                    "model_comparison": fail_message
+                }
+            )
         ref_model = [curr_que.model_mass, curr_que.model_volume, curr_que.model_SA]
         user_model = [
             response['bodies']['-all-']['mass'][0], 
@@ -223,7 +235,7 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
         symbols = []
         # Evaluate model correctness 
         check_pass = True 
-        err_allowance = 0.01
+        err_allowance = 0.005
         for i, item in enumerate(ref_model): 
             if (
                 item * (1 - err_allowance) > user_model[i] or 
@@ -234,12 +246,12 @@ def check_model(request: HttpRequest, question_id: int, os_user_id: str):
             else: 
                 symbols.append("&#x2713;")
             # Round for display 
-            if item < 1: 
+            if item < 0.1 or item > 99: 
+                ref_model[i] = '{:.2e}'.format(ref_model[i])
+                user_model[i] = '{:.2e}'.format(user_model[i])
+            else: 
                 ref_model[i] = round(ref_model[i], 3)
                 user_model[i] = round(user_model[i], 3)
-            else: 
-                ref_model[i] = round(ref_model[i], 2)
-                user_model[i] = round(user_model[i], 2)
         
         if check_pass: # Model is geometrically correct at this point 
             # Check if there is derived feature imported 

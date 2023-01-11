@@ -213,9 +213,9 @@ class Question(models.Model):
             self.model_volume = response['bodies']['-all-']['volume'][0]
             self.model_SA = response['bodies']['-all-']['periphery'][0]
         else: 
-            self.model_mass = None 
-            self.model_volume = None
-            self.model_SA = None
+            self.model_mass = -1
+            self.model_volume = -1
+            self.model_SA = -1
 
         self.save() 
         return None 
