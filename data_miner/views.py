@@ -98,8 +98,6 @@ def get_product_data(data_entry: HistoryData, user: AuthUser, q_info: List[str])
         3. Mesh model (in glTF format) of the part after every 
                 non-sketch and non-plane feature in the construction 
                 process 
-        4. Two shaded view screenshots (128 x 128 PNG) of the part 
-                after every 3D feature (see point above)
 
     Args: 
         - data_entry: the HistoryData model entry that data to be saved in 
@@ -184,68 +182,6 @@ def get_product_data(data_entry: HistoryData, user: AuthUser, q_info: List[str])
             result.append(temp)
         return result 
 
-    def get_image(_rollback_ind: List[int]): 
-        """ Get two isometric shaded view images of the model after every non-sketch 
-        and non-plane feature in the final submitted model. Image 1 captures front, 
-        top, right faces, and image 2 captures back, bottom, left faces. 
-        
-        Args: 
-            - _rollback_ind: all indices the rollback bar needs to be moved to 
-
-        Returns: 
-            List[Dict[
-                "rollbackBarIndex": int, 
-                "view1": str, 
-                "view2": str
-            ]]
-            All views are base64 encoded PNG images of size 128 x 128 pixels 
-        """
-        
-        def shaded_view_api(roll_ind: int, view_mat: List[float]): 
-            """ Make API call to get shaded view with specified 
-            rollback bar index and view matrix. 
-            """
-            response = requests.get(
-                "{}/api/partstudios/d/{}/m/{}/e/{}/shadedviews".format(
-                    q_info[0], q_info[1], q_info[3], q_info[4]
-                ), 
-                headers={
-                    "Content-Type": "application/json", 
-                    "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-                    "Authorization": "Bearer " + user.access_token
-                }, 
-                params={
-                    "viewMatrix": str(view_mat)[1:-1], 
-                    "outputHeight": 128, 
-                    "outputWidth": 128, 
-                    "pixelSize": 0, 
-                    "rollbackBarIndex": roll_ind # to be added 
-                }
-            )
-            if response.ok: 
-                return "data:image/png;base64," + response.json()['images'][0]
-            else: 
-                return ""
-
-        view_mat_1 = [
-            0.707, 0.707, 0., 0., 
-            -0.408, 0.408, 0.816, 0., 
-            0.577, -0.577, 0.577, 0.
-        ] # captures front, top, right faces 
-        view_mat_2 = [
-            -0.707, -0.707, 0., 0., 
-            -0.408, 0.408, 0.816, 0., 
-            -0.577, 0.577, -0.577, 0.
-        ] # captures back, bottom, left faces 
-        
-        result = [] 
-        for ind in rollback_ind: 
-            temp = {"rollbackBarIndex": ind} 
-            temp['view1'] = shaded_view_api(ind, view_mat_1)
-            temp['view2'] = shaded_view_api(ind, view_mat_2)
-            result.append(temp)
-        return result
-
     # Check if user's OAuth token still valid 
     if user.expires_at <= timezone.now() + datetime.timedelta(minutes=20): 
         user.refresh_oauth_token() 
@@ -263,8 +199,6 @@ def get_product_data(data_entry: HistoryData, user: AuthUser, q_info: List[str])
         # Get product data after each rollbackBarIndex found above 
         data_entry.mesh_data = get_mesh(rollback_ind) 
         data_entry.save() 
-        data_entry.shaded_views = get_image(rollback_ind)
-        data_entry.save() 
     return None 
 
 
@@ -280,6 +214,7 @@ def collect_data(request: HttpRequest, os_user_id: str):
 
     data_entry = HistoryData(
         os_user_id=os_user_id, 
+        question_id=curr_que.question_id,
         question_name=curr_que.question_name, 
         completion_time=datetime.datetime.fromisoformat(completion_data[0]), 
         time_spent=completion_data[1], 
