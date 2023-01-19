@@ -22,10 +22,10 @@
         <div>
             <h3>Instructions:</h3>
             <ol>
-                <li>Launch this app in an empty Part Studio with no features to start with</li>
-                <li>Pick a model of your choice from the list below to start</li>
+                <li>Launch this app in an empty Part Studio with no features</li>
+                <li>Pick a model of your choice from the list below and click "Start"</li>
                 <li>You have <strong>one hour</strong> to model the chosen part based on provided drawing(s)</li>
-                <li>Submit through this app when you finish and your model will be checked against the expected model</li>
+                <li>Click "Submit" at the top of the app when you finish and your part will be checked against the reference model</li>
             </ol>
         </div>
         <!-- Search menu to filter by question names -->
@@ -73,10 +73,10 @@
                             {% else %}
                                 <li class="difficulty">Difficulty: Unclassified</li>
                             {% endif %}
-                            <li>Number of users completed: {{ question.completion_count }}</li>
+                            <li>Number of times completed: {{ question.completion_count }}</li>
                         </ul>
                         <!-- Button to start the question -->
-                        {% if question.question_id in user.completed_history %}
+                        {% if question.question_id|slugify in user.completed_history.keys %}
                             <p>You have completed this question before ...</p>
                             <form action="{% url 'questioner:modelling' question.question_id user.os_user_id %}">
                                 <input type="submit" value="Retry this question"/>

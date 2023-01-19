@@ -1,3 +1,9 @@
+/* Main font and color style */
+body {
+    color: #333;
+    font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
+}
+
 /* Style the table to show model properties */ 
 table {
     text-align: left;
