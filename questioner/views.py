@@ -1,22 +1,21 @@
-import io 
 import os 
-import base64
-import datetime 
 import requests
-
-import numpy as np 
-import matplotlib.pyplot as plt 
-from matplotlib.figure import Figure 
-from matplotlib.backends.backend_agg import FigureCanvasAgg
+from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, FileResponse
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
 from django.utils import timezone 
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
 
-from .models import AuthUser, Question
+from .models import AuthUser, Question, Question_SPPS, Question_MPPS, QuestionType
+
+
+Q_Type_Dict = {
+    QuestionType.SINGLE_PART_PS: Question_SPPS, 
+    QuestionType.MULTI_PART_PS: Question_MPPS
+}
 
 
 # Create your views here.
@@ -37,15 +36,16 @@ def login(request: HttpRequest):
         # Check if user is modelling 
         if (
             user.modelling and 
-            user.last_start + datetime.timedelta(hours=1) < timezone.now() and 
+            user.last_start + timedelta(hours=1) < timezone.now() and 
             user.eid == request.GET.get('eid')
         ): 
             # Refresh token if needed 
-            if user.expires_at < timezone.now() + datetime.timedelta(hours=1): 
+            if user.expires_at < timezone.now() + timedelta(hours=1): 
                 user.refresh_oauth_token() 
             # Redirect to modelling page 
             return HttpResponseRedirect(reverse(
-                "questioner:modelling", args=[user.curr_question, user.os_user_id]
+                "questioner:modelling", 
+                args=[user.curr_question_type, user.curr_question_id, user.os_user_id]
             )) 
     except ObjectDoesNotExist: 
         # Create a new user 
@@ -55,6 +55,7 @@ def login(request: HttpRequest):
     user.did = request.GET.get('did')
     user.wid = request.GET.get('wvmid')
     user.eid = request.GET.get('eid')
+    user.etype = request.GET.get('etype')
     user.save() 
 
     return redirect(
@@ -104,7 +105,7 @@ def authorize(request: HttpRequest):
     user = AuthUser.objects.get(os_user_id=sess_response['id'])
     user.access_token = token_response['access_token']
     user.refresh_token = token_response['refresh_token']
-    user.expires_at = timezone.now() + datetime.timedelta(seconds=token_response['expires_in'])
+    user.expires_at = timezone.now() + timedelta(seconds=token_response['expires_in'])
     user.save() 
 
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
@@ -125,19 +126,19 @@ def index(request: HttpRequest, os_user_id: str):
     )
 
 
-def model(request: HttpRequest, question_id: int, os_user_id: str): 
+def model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
     """ The view that the users see when working on a question. 
     It provides all necessary information and instructions for the 
     question. When the user finishes, they should be able to submit 
     and check if model is correct. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    curr_que = get_object_or_404(Question, question_id=question_id)
+    curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
     
-    # Check if the user is starting with an empty part studio 
+    # Check if the user is starting with an empty part studio or assembly 
     response = requests.get(
-        "{}/api/partstudios/d/{}/w/{}/e/{}/features".format(
-            curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
+        "{}/api/{}/d/{}/w/{}/e/{}/features".format(
+            curr_user.os_domain, curr_user.etype, curr_user.did, curr_user.wid, curr_user.eid
         ), 
         headers={
             "Content-Type": "application/json", 
@@ -152,7 +153,7 @@ def model(request: HttpRequest, question_id: int, os_user_id: str):
                 request, "questioner/index.html", 
                 context={
                     "user": curr_user, 
-                    "questions": Question.objects.order_by("question_id"), 
+                    "questions": Question.objects.filter(published=True).order_by("question_name"), 
                     "error_message": "Please start with an empty part studio and relaunch this app ..."
                 }
             )
@@ -162,7 +163,11 @@ def model(request: HttpRequest, question_id: int, os_user_id: str):
     # Okay to start modelling 
     curr_user.modelling = True 
     curr_user.last_start = timezone.now() 
-    curr_user.curr_question = curr_que.question_id 
+    curr_user.curr_question_type = curr_que.question_type
+    curr_user.curr_question_id = curr_que.question_id 
+
+    # Run any start modelling process 
+    curr_que.initiate_actions(curr_user)
 
     # Get current microversion ID 
     response = requests.get(
@@ -180,7 +185,6 @@ def model(request: HttpRequest, question_id: int, os_user_id: str):
         curr_user.start_microversion_id = response['microversion']
     else: 
         curr_user.start_microversion_id = None 
-
     curr_user.save() 
 
     return render(
@@ -192,266 +196,50 @@ def model(request: HttpRequest, question_id: int, os_user_id: str):
     )
 
 
-def check_model(request: HttpRequest, question_id: int, os_user_id: str): 
+def check_model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
     """ When a user submits a model, API calls are made to check if the 
     model is dimensionally correct and placed in proper orientation. 
     If the model is correct, redirect to the complete page. 
     If not correct, redirect back to the model page to ask for modifications. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    curr_que = get_object_or_404(Question, question_id=question_id)
+    curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
-    # Get submitted model mass properties 
-    response = requests.get(
-        "{}/api/partstudios/d/{}/w/{}/e/{}/massproperties".format(
-            curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
-        ), 
-        headers={
-            "Content-Type": "application/json", 
-            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization": "Bearer " + curr_user.access_token
-        }
-    )
-    if response.ok: 
-        response = response.json() 
-        try:
-            response['bodies']['-all-']
-        except:
-            fail_message = "No parts found - please model the part then try re-submitting." 
-            return render(
-                request, "questioner/modelling.html", 
-                context={
-                    "user": curr_user, 
-                    "question": curr_que, 
-                    "model_comparison": fail_message
-                }
-            )
-        ref_model = [curr_que.model_mass, curr_que.model_volume, curr_que.model_SA]
-        user_model = [
-            response['bodies']['-all-']['mass'][0], 
-            response['bodies']['-all-']['volume'][0], 
-            response['bodies']['-all-']['periphery'][0]
-        ]
-        symbols = []
-        # Evaluate model correctness 
-        check_pass = True 
-        err_allowance = 0.005
-        for i, item in enumerate(ref_model): 
-            if (
-                item * (1 - err_allowance) > user_model[i] or 
-                user_model[i] > item * (1 + err_allowance)
-            ): 
-                check_pass = False
-                symbols.append("&#x2717;")
-            else: 
-                symbols.append("&#x2713;")
-            # Round for display 
-            if item < 0.1 or item > 99: 
-                ref_model[i] = '{:.2e}'.format(ref_model[i])
-                user_model[i] = '{:.2e}'.format(user_model[i])
-            else: 
-                ref_model[i] = round(ref_model[i], 3)
-                user_model[i] = round(user_model[i], 3)
-        
-        if check_pass: # Model is geometrically correct at this point 
-            # Check if there is derived feature imported 
-            response = requests.get(
-                "{}/api/partstudios/d/{}/w/{}/e/{}/features".format(
-                    curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
-                ), 
-                headers={
-                    "Content-Type": "application/json", 
-                    "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-                    "Authorization": "Bearer " + curr_user.access_token
-                }
-            )
-            if response.ok: 
-                response = response.json() 
-                feature_cnt = len(response['features'])
-                for fea in response['features']: 
-                    if fea['featureType'] == "importDerived": 
-                        check_pass = False 
-            else: 
-                return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
-        else: # Model is geometrically incorrect 
-            # Build an HTML table to show the difference 
-            fail_message = '''
-            <table>
-                <tr>
-                    <th>Properties</th>
-                    <th>Expected Values</th>
-                    <th>Actual Values</th>
-                    <th>Check</th>
-                </tr>
-            '''
-            prop_name = [
-                "Mass (kg)", "Volume (m^3)", "Surface Area (m^2)"
-            ]
-            for i, item in enumerate(prop_name): 
-                fail_message += f'''
-                <tr>
-                    <td>{item}</td>
-                    <td>{ref_model[i]}</td>
-                    <td>{user_model[i]}</td>
-                    <td>{symbols[i]}</td>
-                </tr>
-                '''
-            fail_message += "</table>" 
-            return render(
-                request, "questioner/modelling.html", 
-                context={
-                    "user": curr_user, 
-                    "question": curr_que, 
-                    "model_comparison": fail_message
-                }
-            )
-        
-        if check_pass: # Model is correct with no derived featuers and the task is completed 
-            # Log the current (the last) microversion 
-            response = requests.get(
-                "{}/api/partstudios/d/{}/w/{}/currentmicroversion".format(
-                    curr_user.os_domain, curr_user.did, curr_user.wid
-                ), 
-                headers={
-                    "Content-Type": "application/json", 
-                    "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-                    "Authorization": "Bearer " + curr_user.access_token
-                }
-            )
-            if response.ok: 
-                response = response.json() 
-                curr_user.end_microversion_id = response['microversion']
-                curr_user.save() 
-            else: 
-                curr_user.end_microversion_id = None
-                curr_user.save() 
+    response = curr_que.evaluate(curr_user)
 
-            # Record historic information in the question model 
-            curr_que.completion_count += 1
-            time_spent = (
-                timezone.now() - curr_user.last_start
-            ).total_seconds() / 60  # in minutes 
-            curr_que.completion_time.append(time_spent)
-            curr_que.completion_feature_cnt.append(feature_cnt)
-            curr_que.save() 
-
-            # Record/update information in the user model 
-            curr_user.modelling = False 
-            if str(curr_que.question_id) in curr_user.completed_history: 
-                curr_user.completed_history[str(curr_que.question_id)].append(
-                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent, feature_cnt))
-            else: 
-                curr_user.completed_history[str(curr_que.question_id)] = [
-                    (datetime.datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), time_spent, feature_cnt)
-                ]
-            curr_user.save() 
-
-            return HttpResponseRedirect(reverse(
-                "questioner:complete", args=[
-                    curr_que.question_id, curr_user.os_user_id
-                ]
-            ))
-        else: # The model is geometrically correct but contains derived features 
-            fail_message = "Your model matches the reference model geometrically, but the feature list contains import derived features. Please complete the task with native Onshape features only and resubmit for evaluation ..."
-            return render(
-                request, "questioner/modelling.html", 
-                context={
-                    "user": curr_user, 
-                    "question": curr_que, 
-                    "model_comparison": fail_message
-                }
-            )
-    else: 
+    if not response: 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
+    elif type(response) is bool: 
+        return HttpResponseRedirect(reverse(
+            "questioner:complete", args=[
+                curr_que.question_type, curr_que.question_id, curr_user.os_user_id
+            ]
+        ))
+    else: 
+        return render(
+            request, "questioner/modelling.html", 
+            context={
+                "user": curr_user, 
+                "question": curr_que, 
+                "model_comparison": response
+            }
+        )
 
 
-def complete(request: HttpRequest, question_id: int, os_user_id: str): 
+def complete(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
     """ THe view that the users see when a question is finished. 
     It provides a brief summary of the user's performance and relative 
     comparisons to all other users. Users should be able to return to 
     index page to start more practice. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    curr_que = get_object_or_404(Question, question_id=question_id)
-
-    my_time = curr_user.completed_history[str(curr_que.question_id)][-1][1] 
-    my_feature_cnt = curr_user.completed_history[str(curr_que.question_id)][-1][2] 
-
-    # Plot a histogram of time spent if there are more than 10 completions 
-    img_data_time = ""
-    if len(curr_que.completion_time) >= 10: 
-        all_time = list(curr_que.completion_time)
-        mean_time = np.mean(all_time)
-        
-        fig = Figure() 
-        ax = fig.add_subplot(1, 1, 1)
-        ax.hist(all_time)
-        
-        patches = ax.patches
-        for patch in list(reversed(patches)): 
-            if patch.get_x() <= my_time and patch.get_x() + patch.get_width() >= my_time: 
-                # Mark where the user is at
-                ax.text(
-                    patch.get_x() + patch.get_width() / 2, 
-                    patch.get_height() + 0.1, 
-                    "Me", ha="center", va="bottom"
-                )
-                break 
-
-        ax.axvline(mean_time, ls='--', c='k', label="Average")
-
-        ax.set_xlabel("Time Spent to Complete This Question (mins)")
-        ax.set_ylabel("Number of Users")
-        ax.legend() 
-
-        img_output = io.BytesIO() 
-        FigureCanvasAgg(fig).print_png(img_output)
-        img_output.seek(0)
-        img_data_time = base64.b64encode(img_output.read())
-        img_data_time = "data:image/png;base64," + str(img_data_time)[2:-1]
-    
-    # Plot a histogram of feature counts if there are more than 10 completions 
-    img_data_cnt = ""
-    if len(curr_que.completion_feature_cnt) >= 10: 
-        all_cnt = list(curr_que.completion_feature_cnt)
-        mean_time = np.mean(all_cnt)
-        
-        fig = Figure() 
-        ax = fig.add_subplot(1, 1, 1)
-        ax.hist(all_cnt)
-        
-        patches = ax.patches
-        for patch in list(reversed(patches)): 
-            if patch.get_x() <= my_feature_cnt and patch.get_x() + patch.get_width() >= my_feature_cnt: 
-                # Mark where the user is at
-                ax.text(
-                    patch.get_x() + patch.get_width() / 2, 
-                    patch.get_height() + 0.1, 
-                    "Me", ha="center", va="bottom"
-                )
-                break 
-
-        ax.axvline(mean_time, ls='--', c='k', label="Average")
-
-        ax.set_xlabel("Number of Features Used to Complete This Question")
-        ax.set_ylabel("Number of Users")
-        ax.legend() 
-
-        img_output = io.BytesIO() 
-        FigureCanvasAgg(fig).print_png(img_output)
-        img_output.seek(0)
-        img_data_cnt = base64.b64encode(img_output.read())
-        img_data_cnt = "data:image/png;base64," + str(img_data_cnt)[2:-1]
+    curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
     return render(
         request, "questioner/complete.html", 
         context={
             "user": curr_user, 
             "question": curr_que, 
-            "time_min": int(my_time), 
-            "time_sec": int(divmod(my_time,1)[1]*60), 
-            "fea_cnt": int(my_feature_cnt), 
-            "stats_img_time": img_data_time, 
-            "stats_img_cnt": img_data_cnt
+            "stats_display": curr_que.show_result(curr_user)
         }
     )

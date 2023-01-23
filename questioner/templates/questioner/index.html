@@ -64,11 +64,11 @@
                     <div class="panel">
                         <ul>
                             <!-- Update difficulty_filter.js if changing <li> here -->
-                            {% if question.difficulty == 1 %}
+                            {% if question.difficulty == "EA" %}
                                 <li class="difficulty">Difficulty: Easy</li>
-                            {% elif question.difficulty == 2 %}
+                            {% elif question.difficulty == "ME" %}
                                 <li class="difficulty">Difficulty: Medium</li>
-                            {% elif question.difficulty == 3 %}
+                            {% elif question.difficulty == "CH" %}
                                 <li class="difficulty">Difficulty: Challenging</li>
                             {% else %}
                                 <li class="difficulty">Difficulty: Unclassified</li>
@@ -76,13 +76,13 @@
                             <li>Number of times completed: {{ question.completion_count }}</li>
                         </ul>
                         <!-- Button to start the question -->
-                        {% if question.question_id|slugify in user.completed_history.keys %}
+                        {% if question|slugify in user.completed_history.keys %}
                             <p>You have completed this question before ...</p>
-                            <form action="{% url 'questioner:modelling' question.question_id user.os_user_id %}">
+                            <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
                                 <input type="submit" value="Retry this question"/>
                             </form>
                         {% else %}
-                            <form action="{% url 'questioner:modelling' question.question_id user.os_user_id %}">
+                            <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
                                 <input type="submit" value="Start this question"/>
                             </form>
                         {% endif %}

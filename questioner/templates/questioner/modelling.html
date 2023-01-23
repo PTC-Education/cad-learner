@@ -3,43 +3,34 @@
     <head>
         {% load static %}
         <link rel="stylesheet" href="{% static 'questioner/modelling.css' %}">
-        <script type="text/javascript">
-            function confirm_alert() {
-                return confirm("Warning, your modeling time will be reset and you will need to restart the challenge. To return to the home page click OK.");
-            }
-        </script>
+        <!-- Load pop-up alert when user trying to go back to index while modelling -->
+        <script src="{% static 'questioner/return_alert.js' %}" type="text/javascript"></script>
     </head>
     <body>
-        <!-- If submission failed (model incorrect) -->
-        {% if model_comparison %}
-            <div class="navbar">
-                <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a>
-                <form class="navbar-centered" action="{% url 'questioner:check' question.question_id user.os_user_id %}">
+        <div class="navbar">
+            <!-- Go back to index page -->
+            <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a>
+            <!-- Submit/Re-submit for evaluation -->
+            <form class="navbar-centered" action="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}">
+                {% if model_comparison %}
                     <input type="submit" value="Re-submit"/>
-                </form>
-                <div class="navbar-right">
-                    <a href="https://cad.onshape.com/documents/{{ question.os_doc_id }}/w/{{ question.os_workspace_id }}/e/{{ question.os_drawing_element_id }}/" target="_blank" rel="noopener noreferrer">View CAD drawing</a>
-                </div>
-            </div>
-            <!-- Print out model comparison table -->
-            <div class="main">
-                {{ model_comparison |safe }}
-                <br /><br />
-                <img src="{{ question.drawing_jpeg }}" width="100%"/>
-            </div>
-        {% else %}
-            <div class="navbar">
-                <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a>
-                <form class="navbar-centered" action="{% url 'questioner:check' question.question_id user.os_user_id %}">
+                {% else %}
                     <input type="submit" value="Submit"/>
-                </form>
-                <div class="navbar-right">
+                {% endif %}
+            </form>
+            <!-- View CAD drawing in new tab -->
+            <div class="navbar-right">
                 <a href="https://cad.onshape.com/documents/{{ question.os_doc_id }}/w/{{ question.os_workspace_id }}/e/{{ question.os_drawing_element_id }}/" target="_blank" rel="noopener noreferrer">View CAD drawing</a>
-                </div>
             </div>
-            <div class="main">
-                <img src="{{ question.drawing_jpeg }}" width="100%"/>
-            </div>
-        {% endif %}
+        </div>
+        <div class="main">
+            <!-- Print out model comparison table if inaccurate -->
+            {% if model_comparison %}
+                {{ model_comparison |safe }}
+            {% endif %}
+            <br /><br />
+            <!-- Show drawing in right panel -->
+            <img src="{{ question.drawing_jpeg }}" width="100%"/>
+        </div>
     </body>
 </html>
