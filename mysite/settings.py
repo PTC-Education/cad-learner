@@ -170,4 +170,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CSP_FRAME_ANCESTORS = ["https://*.onshape.com"]
 CSP_IMG_SRC = ["'self' data:"]
 CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]
-CSRF_TRUSTED_ORIGINS = ["https://*.onshape.com", "https://vex-library.herokuapp.com"] 
+CSRF_TRUSTED_ORIGINS = ["https://*.onshape.com", "https://cad-learner.herokuapp.com"] 
