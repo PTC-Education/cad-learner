@@ -30,3 +30,16 @@ If you want to update questions in the database, you will also need to export AP
 ```export ADMIN_SECRET=xxxxxxxxxxxxxxxxxxxx```
 
 Start the server by running ```python3 manage.py runserver```
+
+### To manually update the database from command line
+To launch shell locally
+```python3 manage.py shell```
+Now you should see ```>>>```
+```from questioner.models import Question_SPPS```
+```q = Question_SPPS.objects.get(question_id=3)```
+```q.completion_feature_cnt = [10,2,4,10,20,3]```
+```q.save()```
+```quit()```
+
+To launch shell in heroku
+```heroku run python manage.py shell``
