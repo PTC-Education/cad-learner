@@ -137,8 +137,11 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
     
     # Check if the user is starting with an empty part studio or assembly 
     response = requests.get(
-        "{}/api/{}/d/{}/w/{}/e/{}/features".format(
-            curr_user.os_domain, curr_user.etype, curr_user.did, curr_user.wid, curr_user.eid
+        os.path.join(
+            curr_user.os_domain,
+            "api/{}/d/{}/w/{}/e/{}/features".format(
+                curr_user.etype, curr_user.did, curr_user.wid, curr_user.eid
+            )
         ), 
         headers={
             "Content-Type": "application/json", 
@@ -159,20 +162,25 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
             )
     else: 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
-    
+
+    # Run any start modelling process 
+    initiate_succ = curr_que.initiate_actions(curr_user)
+    if not initiate_succ: 
+        return HttpResponse("Failed to start the question. Please relaunch the app and try again ...")
+
     # Okay to start modelling 
     curr_user.modelling = True 
     curr_user.last_start = timezone.now() 
     curr_user.curr_question_type = curr_que.question_type
     curr_user.curr_question_id = curr_que.question_id 
 
-    # Run any start modelling process 
-    curr_que.initiate_actions(curr_user)
-
     # Get current microversion ID 
     response = requests.get(
-        "{}/api/documents/d/{}/w/{}/currentmicroversion".format(
-            curr_user.os_domain, curr_user.did, curr_user.wid, curr_user.eid
+        os.path.join(
+            curr_user.os_domain, 
+            "api/documents/d/{}/w/{}/currentmicroversion".format(
+                curr_user.did, curr_user.wid, curr_user.eid
+            )
         ), 
         headers={
             "Content-Type": "application/json", 
