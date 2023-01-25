@@ -270,6 +270,7 @@ class Question_SPPS(Question):
     model_mass = models.FloatField(null=True, help_text="Mass in kg")
     model_volume = models.FloatField(null=True, help_text="Volume in m^3")
     model_SA = models.FloatField(null=True, help_text="Surface area in m^2")
+    model_inertia = models.JSONField(null=True, help_text="3 element array describing the Principal Interia")
 
     def publish(self) -> None: 
         if self.published: 
@@ -447,6 +448,7 @@ class Question_SPPS(Question):
                 self.model_mass = mass_prop['bodies']['-all-']['mass'][0]
                 self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
                 self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
+                self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
             else: 
                 self.model_mass = -1
                 self.model_volume = -1
