@@ -10,6 +10,7 @@ from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
 
 from .models import AuthUser, Question, Question_SPPS, Question_MPPS, QuestionType
+from data_miner.views import collect_fail_data, collect_final_data
 
 
 Q_Type_Dict = {
@@ -166,6 +167,8 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
         return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
 
     # Run any start modelling process 
+    curr_user.add_field = {} # clean field 
+    curr_user.save() 
     initiate_succ = curr_que.initiate_actions(curr_user)
     if not initiate_succ: 
         return HttpResponse("Failed to start the question. Please relaunch the app and try again ...")
@@ -223,18 +226,23 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
     if not response: 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
     elif type(response) is bool: 
+        # Initiate data collection from data miner 
+        collect_final_data(curr_user)
+        # Redirect to complete page 
         return HttpResponseRedirect(reverse(
             "questioner:complete", args=[
                 curr_que.question_type, curr_que.question_id, curr_user.os_user_id
             ]
         ))
     else: 
+        if response[1]: # initiate failure attempt collection 
+            collect_fail_data(curr_user)
         return render(
             request, "questioner/modelling.html", 
             context={
                 "user": curr_user, 
                 "question": curr_que, 
-                "model_comparison": response
+                "model_comparison": response[0] # failure message 
             }
         )
 

@@ -124,64 +124,64 @@ class HistoryData_PS(HistoryData):
 
 #################### Helper API calls ####################
 def get_microversions_discrip(user: AuthUser, q_info: Tuple[str]) -> List[Any]: 
-        """ Retrieve all microversions (descriptions and timestamps) of the 
-        workspace element as a record of all user actions during the design 
-        process. 
-        
-        q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+    """ Retrieve all microversions (descriptions and timestamps) of the 
+    workspace element as a record of all user actions during the design 
+    process. 
+    
+    q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+    """
+
+    def get_doc_history(mid: str): 
+        """ Call the getDocumentHistory endpoint to get the last 20 
+        microversions of the document, starting from the mid argument. 
         """
+        response = requests.get(
+            os.path.join(
+                q_info[0], # os_domain 
+                "api/documents/d/{}/m/{}/documenthistory".format(
+                    q_info[1], mid
+                )
+            ), 
+            headers={
+                "Content-Type": "application/json", 
+                "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+                "Authorization": "Bearer " + user.access_token
+            }
+        )
+        if response.ok: 
+            return response.json() 
+        else: 
+            return None 
 
-        def get_doc_history(mid: str): 
-            """ Call the getDocumentHistory endpoint to get the last 20 
-            microversions of the document, starting from the mid argument. 
-            """
-            response = requests.get(
-                os.path.join(
-                    q_info[0], # os_domain 
-                    "api/documents/d/{}/m/{}/documenthistory".format(
-                        q_info[1], mid
-                    )
-                ), 
-                headers={
-                    "Content-Type": "application/json", 
-                    "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-                    "Authorization": "Bearer " + user.access_token
-                }
-            )
-            if response.ok: 
-                return response.json() 
-            else: 
-                return None 
-
-        def clean_history(raw_history: List[Dict[str, str]]): 
-            """ Given a document history with microversions from the API call, 
-            this function cleans the API response to remove personal identifiers. 
-            """
-            output_history = [] 
-            for item in raw_history: 
-                item.pop("username") # remove username 
-                output_history.append(item)
-                # Check if reaching the begining microversion ID 
-                if item["microversionId"] == q_info[2]: 
-                    break 
-            return output_history
-
-        # Check if user's OAuth token still valid 
-        if user.expires_at <= timezone.now() + timedelta(minutes=10): 
-            user.refresh_oauth_token() 
-        
-        history = [] 
-        next_mid = q_info[3] # start from the chronological end 
-
-        while next_mid and next_mid != q_info[2]: 
-            temp = get_doc_history(next_mid)
-            if temp: 
-                temp = clean_history(temp)
-            else: 
+    def clean_history(raw_history: List[Dict[str, str]]): 
+        """ Given a document history with microversions from the API call, 
+        this function cleans the API response to remove personal identifiers. 
+        """
+        output_history = [] 
+        for item in raw_history: 
+            item.pop("username") # remove username 
+            output_history.append(item)
+            # Check if reaching the begining microversion ID 
+            if item["microversionId"] == q_info[2]: 
                 break 
-            history.extend(temp)
-            next_mid = temp[-1]['nextMicroversionId']
-        return history 
+        return output_history
+
+    # Check if user's OAuth token still valid 
+    if user.expires_at <= timezone.now() + timedelta(minutes=10): 
+        user.refresh_oauth_token() 
+    
+    history = [] 
+    next_mid = q_info[3] # start from the chronological end 
+
+    while next_mid and next_mid != q_info[2]: 
+        temp = get_doc_history(next_mid)
+        if temp: 
+            temp = clean_history(temp)
+        else: 
+            break 
+        history.extend(temp)
+        next_mid = temp[-1]['nextMicroversionId']
+    return history 
         
 
 def get_feature_list(user: AuthUser, q_info: Tuple[str]) -> Any: 
