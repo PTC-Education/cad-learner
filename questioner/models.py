@@ -253,6 +253,7 @@ class Question_SPPS(Question):
     model_mass = models.FloatField(null=True, help_text="Mass in kg")
     model_volume = models.FloatField(null=True, help_text="Volume in m^3")
     model_SA = models.FloatField(null=True, help_text="Surface area in m^2")
+    model_inertia = models.JSONField(null=True, help_text="3 element array describing the Principal Interia")
 
     def publish(self) -> None: 
         if self.published: 
@@ -280,8 +281,8 @@ class Question_SPPS(Question):
         # Get info from user model 
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
-            user.did, "w", user.wid, user.eid, user.etype, 
-            "Bearer " + user.access_token
+            user.did, "w", user.wid, user.eid, user.etype, massAsGroup=True,
+            auth_token="Bearer " + user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
@@ -296,11 +297,12 @@ class Question_SPPS(Question):
                 return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ..."
 
         # Compare property values 
-        ref_model = [self.model_mass, self.model_volume, self.model_SA]
+        ref_model = [self.model_mass, self.model_volume, self.model_SA, self.model_inertia[0]]
         user_model = [
             mass_prop['bodies']['-all-']['mass'][0], 
             mass_prop['bodies']['-all-']['volume'][0], 
-            mass_prop['bodies']['-all-']['periphery'][0]
+            mass_prop['bodies']['-all-']['periphery'][0],
+            mass_prop['bodies']['-all-']['principalInertia'][0]
         ]
         check_symbols = [] 
         check_pass = True 
@@ -335,7 +337,7 @@ class Question_SPPS(Question):
                     <th>Check</th>
                 </tr>
             '''
-            prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)"]
+            prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
             for i, item in enumerate(prop_name): 
                 fail_msg += f'''
                 <tr>
@@ -396,12 +398,18 @@ class Question_SPPS(Question):
         self.etype = ElementType.PARTSTUDIO
         if not self.model_mass: 
             mass_prop = get_mass_properties(
-                self.did, "v", self.vid, self.eid, self.etype
+                self.did, "v", self.vid, self.eid, self.etype, massAsGroup=True
             )
             if mass_prop: 
                 self.model_mass = mass_prop['bodies']['-all-']['mass'][0]
                 self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
                 self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
+                self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
+            else: 
+                self.model_mass = -1
+                self.model_volume = -1
+                self.model_SA = -1
+            self.save() 
         return super().save(*args, **kwargs)
 
 

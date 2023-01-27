@@ -31,10 +31,20 @@ If you want to update questions in the database, you will also need to export AP
 
 Start the server by running ```python3 manage.py runserver```
 
+### To add an admin to the app
+Run ```python3 manage.py createsuperuser``` then follow the prompts.
+
+### To make a change to the database
+First run ```python3 manage.py makemigrations```
+
+Then run ```python3 manage.py migrate```
+
 ### To manually update the database from command line
 To launch shell locally
 ```python3 manage.py shell```
 Now you should see ```>>>```
+
+Example of how you would update the completion feature count array
 ```from questioner.models import Question_SPPS```
 ```q = Question_SPPS.objects.get(question_id=3)```
 ```q.completion_feature_cnt = [10,2,4,10,20,3]```
