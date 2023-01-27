@@ -43,6 +43,8 @@ Then run ```python3 manage.py migrate```
 To launch shell locally
 ```python3 manage.py shell```
 Now you should see ```>>>```
+
+Example of how you would update the completion feature count array
 ```from questioner.models import Question_SPPS```
 ```q = Question_SPPS.objects.get(question_id=3)```
 ```q.completion_feature_cnt = [10,2,4,10,20,3]```
