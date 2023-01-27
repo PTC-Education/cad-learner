@@ -78,7 +78,7 @@
                         </ul>
                         <!-- Button to start the question -->
                         {% if user.etype == question.allowed_etype or question.allowed_etype == "all" %}
-                            {% if question|slugify in user.completed_history.keys %}
+                            {% if question|stringformat:"s" in user.completed_history.keys %}
                                 <p>You have completed this question before ...</p>
                                 <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
                                     <input type="submit" value="Retry this question"/>

@@ -91,7 +91,7 @@ class AuthUser(models.Model):
     completed_history = models.JSONField(default=dict)
     """
     completed_history = Dict[
-        question_id: List[Tuple[completion_datetime, time_taken, ...]]
+        str(question): List[Tuple[completion_datetime, time_taken, ...]]
     ]
 
     For SPPS and MPPS: ... includes feature_cnt
