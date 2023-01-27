@@ -15,7 +15,7 @@
         <!-- Print out error message if any -->
         <div>
             {% if error_message %}
-                <p><strong>{{ error_message }}</strong></p>
+                <p style="color: red;"><strong>{{ error_message }}</strong></p>
             {% endif %}
         </div>
         <!-- General instructions -->
@@ -63,6 +63,7 @@
                     </button>
                     <div class="panel">
                         <ul>
+                            <li>Question type: {{ question.get_question_type_display }}</li>
                             <!-- Update difficulty_filter.js if changing <li> here -->
                             {% if question.difficulty == "EA" %}
                                 <li class="difficulty">Difficulty: Easy</li>
@@ -76,15 +77,19 @@
                             <li>Number of times completed: {{ question.completion_count }}</li>
                         </ul>
                         <!-- Button to start the question -->
-                        {% if question|slugify in user.completed_history.keys %}
-                            <p>You have completed this question before ...</p>
-                            <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
-                                <input type="submit" value="Retry this question"/>
-                            </form>
+                        {% if user.etype == question.allowed_etype or question.allowed_etype == "all" %}
+                            {% if question|slugify in user.completed_history.keys %}
+                                <p>You have completed this question before ...</p>
+                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
+                                    <input type="submit" value="Retry this question"/>
+                                </form>
+                            {% else %}
+                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
+                                    <input type="submit" value="Start this question"/>
+                                </form>
+                            {% endif %}
                         {% else %}
-                            <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
-                                <input type="submit" value="Start this question"/>
-                            </form>
+                                <p><strong>Note:</strong> You cannot start this question in a(n) {{ user.get_etype_display }}. Please relaunch the app in a(n) {{ question.get_allowed_etype_display }} if you would like to attempt this question.</p>
                         {% endif %}
                     </div>
                 </div>

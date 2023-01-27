@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, HttpResponseNotFound
 from django.utils import timezone 
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
@@ -133,6 +133,8 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
     and check if model is correct. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    if question_type not in Q_Type_Dict.keys(): 
+        return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
     
     # Check if the user is starting with an empty part studio or assembly 
@@ -173,6 +175,7 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
     curr_user.last_start = timezone.now() 
     curr_user.curr_question_type = curr_que.question_type
     curr_user.curr_question_id = curr_que.question_id 
+    curr_user.end_mid = None
 
     # Get current microversion ID 
     response = requests.get(
@@ -190,9 +193,9 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
     )
     if response.ok: 
         response = response.json() 
-        curr_user.start_microversion_id = response['microversion']
+        curr_user.start_mid = response['microversion']
     else: 
-        curr_user.start_microversion_id = None 
+        curr_user.start_mid = None 
     curr_user.save() 
 
     return render(
@@ -211,6 +214,8 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
     If not correct, redirect back to the model page to ask for modifications. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    if question_type not in Q_Type_Dict.keys(): 
+        return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
     response = curr_que.evaluate(curr_user)
@@ -241,6 +246,8 @@ def complete(request: HttpRequest, question_type: str, question_id: int, os_user
     index page to start more practice. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    if question_type not in Q_Type_Dict.keys(): 
+        return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
     return render(
