@@ -267,6 +267,7 @@ class Question_SPPS(Question):
     model_mass = models.FloatField(null=True, help_text="Mass in kg")
     model_volume = models.FloatField(null=True, help_text="Volume in m^3")
     model_SA = models.FloatField(null=True, help_text="Surface area in m^2")
+    model_inertia = models.JSONField(null=True, help_text="3 element array describing the Principal Interia")
 
     class Meta: 
         verbose_name = "Single-part Part Studio Question"
@@ -286,18 +287,18 @@ class Question_SPPS(Question):
         """
         return True 
 
-    def evaluate(self, user: AuthUser) -> Union[Tuple[Union[str, bool]], bool]: 
+    def evaluate(self, user: AuthUser) -> Union[str, bool]: 
         """ Given the user submiting a model for evaluation, this function checks if the 
         user model matches the reference model. 
         - If evaluation passed, True is returned. 
         - If evaluation cannot proceed due to API errors, False is returned. 
         - If evaluation found mismatch, a table showing the difference is returned to 
-          be displayed in the HTML page. Returns: Tuple[err_table, ?collect_fail_data]
+          be displayed in the HTML page. 
         """
         # Get info from user model 
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
-            user.did, "w", user.wid, user.eid, user.etype, 
+            user.did, "w", user.wid, user.eid, user.etype, massAsGroup=True,
             auth_token="Bearer " + user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
@@ -305,7 +306,7 @@ class Question_SPPS(Question):
 
         # Check if there are parts 
         if len(mass_prop['bodies']) == 0: 
-            return "No parts found - please model the part then try re-submitting.", False
+            return "No parts found - please model the part then try re-submitting.", False 
         
         # Check if there are derived parts 
         for fea in feature_list['features']: 
@@ -313,11 +314,12 @@ class Question_SPPS(Question):
                 return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ...", False 
 
         # Compare property values 
-        ref_model = [self.model_mass, self.model_volume, self.model_SA]
+        ref_model = [self.model_mass, self.model_volume, self.model_SA, self.model_inertia[0]]
         user_model = [
             mass_prop['bodies']['-all-']['mass'][0], 
             mass_prop['bodies']['-all-']['volume'][0], 
-            mass_prop['bodies']['-all-']['periphery'][0]
+            mass_prop['bodies']['-all-']['periphery'][0],
+            mass_prop['bodies']['-all-']['principalInertia'][0]
         ]
         check_symbols = [] 
         check_pass = True 
@@ -351,7 +353,7 @@ class Question_SPPS(Question):
                     <th>Check</th>
                 </tr>
             '''
-            prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)"]
+            prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
             for i, item in enumerate(prop_name): 
                 fail_msg += f'''
                 <tr>
@@ -367,8 +369,9 @@ class Question_SPPS(Question):
                 user.save() 
                 return fail_msg + "</table>", True 
             else: 
-                return fail_msg + "</table>", False 
+                return fail_msg + "</table>", False
         else: 
+            # Initiate data collection from data_miner 
             # Update database to record success 
             time_spent = (timezone.now() - user.last_start).total_seconds()
             feature_cnt = len(feature_list['features'])
@@ -415,15 +418,16 @@ class Question_SPPS(Question):
     def save(self, *args, **kwargs): 
         self.question_type = QuestionType.SINGLE_PART_PS
         self.etype = ElementType.PARTSTUDIO
-        self.allowed_etype = ElementType.PARTSTUDIO
         if not self.model_mass: 
             mass_prop = get_mass_properties(
-                self.did, "v", self.vid, self.eid, self.etype
+                self.did, "v", self.vid, self.eid, self.etype, massAsGroup=True
             )
             if mass_prop: 
                 self.model_mass = mass_prop['bodies']['-all-']['mass'][0]
                 self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
                 self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
+                self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
+            self.save() 
         return super().save(*args, **kwargs)
 
 
