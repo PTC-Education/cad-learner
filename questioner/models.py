@@ -1,6 +1,6 @@
 """
 Development Guide
-Last major structural update: Jan. 23, 2023
+Last major structural update: Jan. 27, 2023
 
 The Django model class "Question" is a base parent class of all question types. 
 Every question type should inheret the properties and methods of the Question class. 
@@ -24,6 +24,10 @@ When creating new question types:
     (v).    save(self): initial information to be retrieved from Onshape when a 
             question is first added by the admin
 5.  Add additional methods if required 
+6.  Add the new question type class to the Q_Type_Dict variables in all models.py 
+    and views.py files in this project 
+7.  Design and create a new HistoryData class model in the data_miner app to 
+    collect data for failed and successful submissions 
 """
 
 import io 
@@ -31,7 +35,7 @@ import os
 import requests
 import base64
 from datetime import datetime, timedelta
-from typing import Union, Any
+from typing import Union, Tuple, Any
 
 import numpy as np 
 import numpy.typing as npt 
@@ -56,6 +60,7 @@ class ElementType(models.TextChoices):
     NA = "N/A", gettext_lazy("Not Applicable")
     PARTSTUDIO = "partstudios", gettext_lazy("Part Studio")
     ASSEMBLY = "assemblies", gettext_lazy("Assembly")
+    ALL = "all", gettext_lazy("All Types")
 
 
 class AuthUser(models.Model): 
@@ -76,8 +81,8 @@ class AuthUser(models.Model):
     last_start = models.DateTimeField(null=True) 
     curr_question_type = models.CharField(max_length=4, choices=QuestionType.choices, null=True)
     curr_question_id = models.CharField(max_length=400, null=True) 
-    start_microversion_id = models.CharField(max_length=30, null=True) 
-    end_microversion_id = models.CharField(max_length=30, null=True) 
+    start_mid = models.CharField(max_length=30, null=True) 
+    end_mid = models.CharField(max_length=30, null=True) 
     add_field = models.JSONField(
         default=dict, null=True, 
         help_text="An additional field that can be used for some question types to store additional data in the user's model"
@@ -86,8 +91,10 @@ class AuthUser(models.Model):
     completed_history = models.JSONField(default=dict)
     """
     completed_history = Dict[
-        question_id: List[Tuple[completion_datetime, time_taken, feature_cnt]]
+        str(question): List[Tuple[completion_datetime, time_taken, ...]]
     ]
+
+    For SPPS and MPPS: ... includes feature_cnt
     """
 
     def refresh_oauth_token(self) -> None: 
@@ -139,6 +146,13 @@ class Question(models.Model):
         max_length=2, 
         choices=DifficultyLevel.choices, 
         default=DifficultyLevel.UNCLASSIFIED
+    )
+    allowed_etype = models.CharField(
+        "Allowed element type(s)", 
+        max_length=40, 
+        choices=ElementType.choices, 
+        default=ElementType.ALL, 
+        help_text="Allowed Onshape element type(s) that can start this question."
     )
 
     # IDs to be linked 
@@ -255,6 +269,9 @@ class Question_SPPS(Question):
     model_SA = models.FloatField(null=True, help_text="Surface area in m^2")
     model_inertia = models.JSONField(null=True, help_text="3 element array describing the Principal Interia")
 
+    class Meta: 
+        verbose_name = "Single-part Part Studio Question"
+
     def publish(self) -> None: 
         if self.published: 
             self.published = False 
@@ -289,12 +306,12 @@ class Question_SPPS(Question):
 
         # Check if there are parts 
         if len(mass_prop['bodies']) == 0: 
-            return "No parts found - please model the part then try re-submitting." 
+            return "No parts found - please model the part then try re-submitting.", False 
         
         # Check if there are derived parts 
         for fea in feature_list['features']: 
             if fea['featureType'] == 'importDerived': 
-                return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ..."
+                return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ...", False 
 
         # Compare property values 
         ref_model = [self.model_mass, self.model_volume, self.model_SA, self.model_inertia[0]]
@@ -326,7 +343,6 @@ class Question_SPPS(Question):
                 user_model[i] = round(user_model[i], 3)
 
         if not check_pass: 
-            # Initiate data collection from data_miner if first failure 
             # Prepare error message 
             fail_msg = '''
             <table>
@@ -347,7 +363,13 @@ class Question_SPPS(Question):
                     <td>{check_symbols[i]}</td>
                 </tr>
                 '''
-            return fail_msg + "</table>" 
+            # Return failure messages 
+            if not user.end_mid: # first failure 
+                user.end_mid = get_microversion(user)
+                user.save() 
+                return fail_msg + "</table>", True 
+            else: 
+                return fail_msg + "</table>", False
         else: 
             # Initiate data collection from data_miner 
             # Update database to record success 
@@ -360,16 +382,16 @@ class Question_SPPS(Question):
             self.completion_feature_cnt.append(feature_cnt)
             self.save()
 
-            user.end_microversion_id = end_mid
+            user.end_mid = end_mid
             user.modelling = False 
             if str(self) in user.completed_history: 
                 user.completed_history[str(self)].append((
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 ))
             else: 
                 user.completed_history[str(self)] = [(
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 )]
             user.save() 
@@ -405,10 +427,6 @@ class Question_SPPS(Question):
                 self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
                 self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
                 self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
-            else: 
-                self.model_mass = -1
-                self.model_volume = -1
-                self.model_SA = -1
             self.save() 
         return super().save(*args, **kwargs)
 
@@ -435,6 +453,8 @@ class Question_MPPS(Question):
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
     model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
 
+    class Meta: 
+        verbose_name = "Multi-part Part Studio Question"
 
     def publish(self) -> None: 
         if self.published: 
@@ -547,27 +567,33 @@ class Question_MPPS(Question):
                 eval_result.count(True), len(eval_result)
             )
 
-    def evaluate(self, user: AuthUser) -> Union[str, bool]: 
+    def evaluate(self, user: AuthUser) -> Union[Tuple[Union[str, bool]], bool]: 
         """ Given the user submiting a model for evaluation, this function checks if the 
         user model matches the reference model. 
         - If evaluation passed, True is returned. 
         - If evaluation cannot proceed due to API errors, False is returned. 
         - If evaluation found mismatch, a table showing the difference is returned to 
-          be displayed in the HTML page. 
+          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
         """
         # Get info from user model 
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
-            user.did, "w", user.wid, user.eid, user.etype, 
-            "Bearer " + user.access_token
+            user.did, "w", user.wid, user.eid, user.etype, massAsGroup=False, 
+            auth_token="Bearer " + user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
 
         if len(mass_prop['bodies']) == 0: # Check if there are parts 
-            return "No parts found - please model the part then try re-submitting." 
+            return "No parts found - please model the part then try re-submitting.", False 
         elif len(mass_prop['bodies']) != len(self.model_mass): # Check num of parts 
-            return "The number of parts in your Part Studio does not match the reference Part Studio."
+            err_msg = "The number of parts in your Part Studio does not match the reference Part Studio."
+            if not user.end_mid: # first failure 
+                user.end_mid = get_microversion(user)
+                user.save() 
+                return err_msg, True 
+            else: 
+                return err_msg, False 
 
         # Check if there are derived parts other than those imported for initiation 
         for fea in feature_list['features']: 
@@ -575,7 +601,7 @@ class Question_MPPS(Question):
                 fea['featureType'] == 'importDerived' and 
                 (not self.starting_eid or fea['featureId'] != user.add_field['MPPS_Derived_ID'])
             ): 
-                return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ..."
+                return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ...", False 
         
         # Compare property values 
         eval_correct = self.geo_check(
@@ -586,11 +612,13 @@ class Question_MPPS(Question):
             ]
         )
         if not type(eval_correct) is bool: 
-            # Initiate data collection from data miner if first failure 
-            # Return the evaluation result text 
-            return eval_correct
+            if not user.end_mid: # first failure 
+                user.end_mid = get_microversion(user)
+                user.save() 
+                return eval_correct, True 
+            else: 
+                return eval_correct, False 
         else: 
-            # Initiate data collection from data miner
             # Update database to record success 
             time_spent = (timezone.now() - user.last_start).total_seconds()
             feature_cnt = len(feature_list['features'])
@@ -601,16 +629,16 @@ class Question_MPPS(Question):
             self.completion_feature_cnt.append(feature_cnt)
             self.save()
 
-            user.end_microversion_id = end_mid
+            user.end_mid = end_mid
             user.modelling = False 
             if str(self) in user.completed_history: 
                 user.completed_history[str(self)].append((
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 ))
             else: 
                 user.completed_history[str(self)] = [(
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 )]
             user.save() 
@@ -637,13 +665,11 @@ class Question_MPPS(Question):
     def save(self, *args, **kwargs): 
         self.question_type = QuestionType.MULTI_PART_PS
         self.etype = ElementType.PARTSTUDIO
+        self.allowed_etype = ElementType.PARTSTUDIO
         if self.starting_eid and not self.mid: 
-            ele_info = get_elements(self)
+            ele_info = get_elements(self, self.starting_eid)
             if ele_info: 
-                for ele in ele_info: 
-                    if ele['id'] == self.starting_eid: 
-                        self.mid = ele['microversionId']
-                        break 
+                self.mid = ele_info[0]['microversionId']
         if not self.model_mass: 
             mass_prop = get_mass_properties(
                 self.did, "v", self.vid, self.eid, self.etype, massAsGroup=False 
@@ -717,7 +743,7 @@ def get_jpeg_drawing(question: _Q_TYPES, auth_token=API_KEY) -> str:
 
 
 def get_mass_properties(
-    did: str, wvm: str, wvmid: str, eid: str, etype: str, massAsGroup=False, auth_token=API_KEY
+    did: str, wvm: str, wvmid: str, eid: str, etype: str, massAsGroup=True, auth_token=API_KEY
 ) -> Any: 
     """ Get the mass and geometry properties of the given element 
     """
@@ -784,7 +810,7 @@ def get_microversion(user: AuthUser) -> Union[str, None]:
         return None 
 
 
-def get_elements(question: _Q_TYPES, auth_token=API_KEY) -> Any: 
+def get_elements(question: _Q_TYPES, elementId=None, auth_token=API_KEY) -> Any: 
     """ Get all elements in a document's version and their information 
     """
     response = requests.get(
@@ -795,6 +821,9 @@ def get_elements(question: _Q_TYPES, auth_token=API_KEY) -> Any:
             "Content-Type": "application/json", 
             "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
             "Authorization" : auth_token
+        }, 
+        params={
+            "elementId": elementId
         }
     )
     if response.ok: 

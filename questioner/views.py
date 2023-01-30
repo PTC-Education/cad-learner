@@ -4,12 +4,13 @@ from datetime import timedelta
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
-from django.http import HttpRequest, HttpResponse, HttpResponseRedirect
+from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, HttpResponseNotFound
 from django.utils import timezone 
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
 
 from .models import AuthUser, Question, Question_SPPS, Question_MPPS, QuestionType
+from data_miner.views import collect_fail_data, collect_final_data
 
 
 Q_Type_Dict = {
@@ -133,6 +134,8 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
     and check if model is correct. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    if question_type not in Q_Type_Dict.keys(): 
+        return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
     
     # Check if the user is starting with an empty part studio or assembly 
@@ -164,6 +167,8 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
         return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
 
     # Run any start modelling process 
+    curr_user.add_field = {} # clean field 
+    curr_user.save() 
     initiate_succ = curr_que.initiate_actions(curr_user)
     if not initiate_succ: 
         return HttpResponse("Failed to start the question. Please relaunch the app and try again ...")
@@ -173,6 +178,7 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
     curr_user.last_start = timezone.now() 
     curr_user.curr_question_type = curr_que.question_type
     curr_user.curr_question_id = curr_que.question_id 
+    curr_user.end_mid = None
 
     # Get current microversion ID 
     response = requests.get(
@@ -190,9 +196,9 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
     )
     if response.ok: 
         response = response.json() 
-        curr_user.start_microversion_id = response['microversion']
+        curr_user.start_mid = response['microversion']
     else: 
-        curr_user.start_microversion_id = None 
+        curr_user.start_mid = None 
     curr_user.save() 
 
     return render(
@@ -211,6 +217,8 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
     If not correct, redirect back to the model page to ask for modifications. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    if question_type not in Q_Type_Dict.keys(): 
+        return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
     response = curr_que.evaluate(curr_user)
@@ -218,18 +226,23 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
     if not response: 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
     elif type(response) is bool: 
+        # Initiate data collection from data miner 
+        collect_final_data(curr_user)
+        # Redirect to complete page 
         return HttpResponseRedirect(reverse(
             "questioner:complete", args=[
                 curr_que.question_type, curr_que.question_id, curr_user.os_user_id
             ]
         ))
     else: 
+        if response[1]: # initiate failure attempt collection 
+            collect_fail_data(curr_user)
         return render(
             request, "questioner/modelling.html", 
             context={
                 "user": curr_user, 
                 "question": curr_que, 
-                "model_comparison": response
+                "model_comparison": response[0] # failure message 
             }
         )
 
@@ -241,6 +254,8 @@ def complete(request: HttpRequest, question_type: str, question_id: int, os_user
     index page to start more practice. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    if question_type not in Q_Type_Dict.keys(): 
+        return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
     return render(
