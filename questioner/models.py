@@ -224,14 +224,17 @@ class Question(models.Model):
         else: 
             return False 
 
-    def show_result(self, user: AuthUser) -> str: 
+    def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ By default, the time spent to completion of a question of all users 
         is visualized through a distribution plot, and the relative position of 
         the user is labelled. For every question type, specific additional 
         distributions may also be added in corresponding subclasses. 
         """
         # Print out user's time spent 
-        my_time = user.completed_history[str(self)][-1][1] # in seconds
+        if show_best: 
+            my_time = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][1] 
+        else: 
+            my_time = user.completed_history[str(self)][-1][1] # in seconds
         output = "<p>You completed the model {} in {} minutes and {} seconds.</p>".format(
             self.question_name, int(my_time // 60), int(my_time % 60)
         )
@@ -397,11 +400,14 @@ class Question_SPPS(Question):
             user.save() 
             return True 
     
-    def show_result(self, user: AuthUser) -> str: 
+    def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ Other than the default time spent comparison, also plot the 
         distribution of features used to complete the question. 
         """
-        my_fea_cnt = user.completed_history[str(self)][-1][2] 
+        if show_best: 
+            my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
+        else: 
+            my_fea_cnt = user.completed_history[str(self)][-1][2] 
         output = "<p>You completed the model {} with {} features.</p>".format(
             self.question_name, int(my_fea_cnt)
         )
@@ -413,7 +419,7 @@ class Question_SPPS(Question):
                     x_label="Number of Features Used to Complete This Question"
                 )
             )
-        return super().show_result(user) + output
+        return super().show_result(user, show_best=show_best) + output
 
     def save(self, *args, **kwargs): 
         self.question_type = QuestionType.SINGLE_PART_PS
@@ -644,11 +650,14 @@ class Question_MPPS(Question):
             user.save() 
             return True 
 
-    def show_result(self, user: AuthUser) -> str: 
+    def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ Other than the default time spent comparison, also plot the 
         distribution of features used to complete the question. 
         """
-        my_fea_cnt = user.completed_history[str(self)][-1][2] 
+        if show_best: 
+            my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
+        else: 
+            my_fea_cnt = user.completed_history[str(self)][-1][2] 
         output = "<p>You completed the model {} with {} features.</p>".format(
             self.question_name, int(my_fea_cnt)
         )
@@ -660,7 +669,7 @@ class Question_MPPS(Question):
                     x_label="Number of Features Used to Complete This Question"
                 )
             )
-        return super().show_result(user) + output
+        return super().show_result(user, show_best=show_best) + output
 
     def save(self, *args, **kwargs): 
         self.question_type = QuestionType.MULTI_PART_PS

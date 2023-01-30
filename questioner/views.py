@@ -258,11 +258,17 @@ def complete(request: HttpRequest, question_type: str, question_id: int, os_user
         return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
+    if "best" in request.GET: 
+        show_best = True 
+    else: 
+        show_best = False
+
     return render(
         request, "questioner/complete.html", 
         context={
             "user": curr_user, 
             "question": curr_que, 
-            "stats_display": curr_que.show_result(curr_user)
+            "show_best": show_best, 
+            "stats_display": curr_que.show_result(curr_user, show_best=show_best)
         }
     )

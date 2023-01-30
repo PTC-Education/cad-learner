@@ -4,6 +4,10 @@ body {
     font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
 }
 
+#err_msg {
+    color: red;
+}
+
 /* Style the app logo at the center top of the page */ 
 .logo{
     position: relative;

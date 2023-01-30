@@ -6,7 +6,11 @@
     </head>
     <body>
         <h2>Congratulations!</h2>
-        <p>Your Onshape CAD model matches all expected values from the reference model.</p> 
+        {% if show_best %}
+            <p>Here is your best performance (in terms of time spent) on question "{{ question.question_name }}"</p>
+        {% else %}
+            <p>Your Onshape CAD model matches all expected values from the reference model.</p> 
+        {% endif %}
         <!-- Return to the home page -->
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>

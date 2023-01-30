@@ -15,7 +15,7 @@
         <!-- Print out error message if any -->
         <div>
             {% if error_message %}
-                <p style="color: red;"><strong>{{ error_message }}</strong></p>
+                <p id="err_msg"><strong>{{ error_message }}</strong></p>
             {% endif %}
         </div>
         <!-- General instructions -->
@@ -82,6 +82,10 @@
                                 <p>You have completed this question before ...</p>
                                 <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
                                     <input type="submit" value="Retry this question"/>
+                                </form>
+                                <form action="{% url 'questioner:complete' question.question_type question.question_id user.os_user_id %}">
+                                    <input type="hidden" name="best" value="1"/>
+                                    <input type="submit" value="View best performance"/>
                                 </form>
                             {% else %}
                                 <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
