@@ -95,3 +95,12 @@ Now you should see ```>>>```
 
 To launch shell in heroku
 ```heroku run python manage.py shell``
+
+## Setup and test Redis locally to use the `data_miner` 
+For setup, follow instructions [here](https://redis.io/docs/getting-started/installation/install-redis-on-mac-os/) to download Redis locally. 
+
+For testing: 
+1. Open a terminal window and run `redis-server` to make sure your local Redis is running properly. 
+2. Open a new terminal window to launch the Django server as you normally do by running `python3 manage.py runserver`. 
+3. Open another new terminal window to launch the worker (the Django Redis Queue) by running `python3 manage.py rqworker high default low`. 
+4. Make sure all three terminal windows are running properly, then you can start using the app. 

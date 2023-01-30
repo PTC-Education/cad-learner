@@ -21,7 +21,7 @@ import base64
 import requests 
 import trimesh
 from datetime import timedelta
-from typing import Union, Tuple, Dict, List, Any 
+from typing import Tuple, Dict, List, Any 
 
 from django.db import models
 from django.utils import timezone
@@ -109,11 +109,11 @@ class HistoryData_PS(HistoryData):
         """ Record data for final correct submission 
         q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
         """
-        print("PASS")
         # Check if user's OAuth token still valid 
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
             user.refresh_oauth_token() 
 
+        self.microversions_discrip = get_microversions_discrip(user, q_info)
         self.final_feature_list = get_feature_list(user, q_info)
         self.final_shaded_views = {
             "FRT": get_shaded_view(user, q_info, view_mat=FRT_VIEW_MAT), 
@@ -175,14 +175,17 @@ def get_microversions_discrip(user: AuthUser, q_info: Tuple[str]) -> List[Any]:
     history = [] 
     next_mid = q_info[3] # start from the chronological end 
 
-    while next_mid and next_mid != q_info[2]: 
+    while next_mid: 
         temp = get_doc_history(next_mid)
         if temp: 
             temp = clean_history(temp)
         else: 
             break 
         history.extend(temp)
-        next_mid = temp[-1]['nextMicroversionId']
+        if temp[-1]['microversionId'] == q_info[2]: 
+            break 
+        else: 
+            next_mid = temp[-1]['nextMicroversionId']
     return history 
         
 
@@ -254,13 +257,13 @@ def get_stl_mesh(user: AuthUser, q_info: Tuple[str], rollbackBarIndex=-1) -> str
     response = requests.get(
         os.path.join(
             q_info[0], 
-            "api/partstudios/d/{}/m/{}/e/{}gltf".format(
+            "api/partstudios/d/{}/m/{}/e/{}/gltf".format(
                 q_info[1], q_info[3], q_info[4]
             )
         ), 
         headers={
             "Content-Type": "application/json", 
-            "Accept": "model/glft-binary;qs=0.08", 
+            "Accept": "model/gltf-binary;qs=0.08", 
             "Authorization": "Bearer " + user.access_token
         }, 
         params={

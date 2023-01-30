@@ -1,19 +1,12 @@
 import time 
 from datetime import datetime
 
-from rq import Queue 
-from worker import conn
-
+import django_rq
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 
 from .models import HistoryData_PS
 from questioner.models import AuthUser, QuestionType
-
-
-# The RQ queue that processes all time-consuming data mining operations 
-# in the background 
-q = Queue(connection=conn)
 
 
 # Create your views here.
@@ -52,7 +45,7 @@ def collect_fail_data(user: AuthUser) -> bool:
         data_entry.first_failed_time = timezone.now() 
         data_entry.save() 
         # Send data collection jobs to the RQ queue 
-        q.enqueue(data_entry.first_failure_record, args=[user, query_info])
+        django_rq.enqueue(data_entry.first_failure_record, args=[user, query_info])
     return True
 
 
@@ -97,6 +90,5 @@ def collect_final_data(user: AuthUser) -> bool:
         user.curr_question_type == QuestionType.MULTI_PART_PS 
     ): 
         # Send data collection jobs to the RQ queue 
-        time.sleep(1)
-        q.enqueue(data_entry.final_sub_record, args=[user, query_info])
+        django_rq.enqueue(data_entry.final_sub_record, args=[user, query_info])
     return True

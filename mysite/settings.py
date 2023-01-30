@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_rq'
 ]
 
 MIDDLEWARE = [
@@ -105,6 +106,26 @@ if 'DATABASE_URL' in os.environ:
     # Enable test database if found in CI environment.
     if "CI" in os.environ:
         DATABASES["default"]["TEST"] = DATABASES["default"]
+
+# Configure django queues 
+RQ_QUEUES = {
+    'default': {
+        'URL': os.getenv('REDISTOGO_URL', 'redis://localhost:6379/0'), 
+        'DEFAULT_TIMEOUT': 500,
+    },
+    'high': {
+        'URL': os.getenv('REDISTOGO_URL', 'redis://localhost:6379/0'), 
+        'DEFAULT_TIMEOUT': 500,
+    },
+    'low': {
+        'URL': os.getenv('REDISTOGO_URL', 'redis://localhost:6379/0'), 
+        'DEFAULT_TIMEOUT': 500,
+    }
+}
+
+if not IS_HEROKU: 
+    for queueConfig in RQ_QUEUES.values(): 
+        queueConfig['ASYNC'] = False
 
 
 # Password validation
