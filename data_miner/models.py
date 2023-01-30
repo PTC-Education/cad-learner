@@ -85,6 +85,7 @@ class HistoryData_PS(HistoryData):
     # Final correct submission 
     final_feature_list = models.JSONField(default=dict, null=True)
     final_shaded_views = models.JSONField(default=dict, null=True)
+    # List[Tuple[rollbackBarIndex, mesh]]
     process_mesh = models.JSONField(default=list, null=True)
 
     def first_failure_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
@@ -108,6 +109,7 @@ class HistoryData_PS(HistoryData):
         """ Record data for final correct submission 
         q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
         """
+        print("PASS")
         # Check if user's OAuth token still valid 
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
             user.refresh_oauth_token() 
@@ -117,7 +119,7 @@ class HistoryData_PS(HistoryData):
             "FRT": get_shaded_view(user, q_info, view_mat=FRT_VIEW_MAT), 
             "BLB": get_shaded_view(user, q_info, view_mat=BLB_VIEW_MAT)
         }
-        self.process_mesh = [get_stl_mesh(user, q_info)]
+        self.process_mesh = [(-1, get_stl_mesh(user, q_info))]
         self.save() 
         return None 
 
@@ -245,6 +247,7 @@ def get_shaded_view(
 
 def get_stl_mesh(user: AuthUser, q_info: Tuple[str], rollbackBarIndex=-1) -> str: 
     """ Export the mesh representation of the part studio in STL format (base64 encoded)
+    To view the original data in bytes: base64.b64decode(data)
 
     q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
     """

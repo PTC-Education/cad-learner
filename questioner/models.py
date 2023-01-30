@@ -298,7 +298,7 @@ class Question_SPPS(Question):
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
             user.did, "w", user.wid, user.eid, user.etype, 
-            "Bearer " + user.access_token
+            auth_token="Bearer " + user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
@@ -383,12 +383,12 @@ class Question_SPPS(Question):
             user.modelling = False 
             if str(self) in user.completed_history: 
                 user.completed_history[str(self)].append((
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 ))
             else: 
                 user.completed_history[str(self)] = [(
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 )]
             user.save() 
@@ -629,12 +629,12 @@ class Question_MPPS(Question):
             user.modelling = False 
             if str(self) in user.completed_history: 
                 user.completed_history[str(self)].append((
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 ))
             else: 
                 user.completed_history[str(self)] = [(
-                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%s'), 
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
                     time_spent, feature_cnt
                 )]
             user.save() 

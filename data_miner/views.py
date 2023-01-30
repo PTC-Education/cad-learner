@@ -1,3 +1,4 @@
+import time 
 from datetime import datetime
 
 from rq import Queue 
@@ -80,7 +81,9 @@ def collect_final_data(user: AuthUser) -> bool:
     ][-1] # Tuple[completion_datetime, time_taken, ...]
 
     data_entry.time_of_completion = datetime.fromisoformat(completion_data[0])
-    data_entry.num_attempt = completion_data[1]
+    data_entry.num_attempt = len(user.completed_history[
+        user.curr_question_type + "_" + str(user.curr_question_id)
+    ])
     data_entry.save() 
     
     # Initiate final submission data record 
@@ -94,5 +97,6 @@ def collect_final_data(user: AuthUser) -> bool:
         user.curr_question_type == QuestionType.MULTI_PART_PS 
     ): 
         # Send data collection jobs to the RQ queue 
+        time.sleep(1)
         q.enqueue(data_entry.final_sub_record, args=[user, query_info])
     return True
