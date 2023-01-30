@@ -110,15 +110,15 @@ if 'DATABASE_URL' in os.environ:
 # Configure django queues 
 RQ_QUEUES = {
     'default': {
-        'URL': os.getenv('REDISTOGO_URL', 'redis://localhost:6379/0'), 
+        'URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'), 
         'DEFAULT_TIMEOUT': 500,
     },
     'high': {
-        'URL': os.getenv('REDISTOGO_URL', 'redis://localhost:6379/0'), 
+        'URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'), 
         'DEFAULT_TIMEOUT': 500,
     },
     'low': {
-        'URL': os.getenv('REDISTOGO_URL', 'redis://localhost:6379/0'), 
+        'URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'), 
         'DEFAULT_TIMEOUT': 500,
     }
 }
