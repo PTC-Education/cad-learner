@@ -4,16 +4,30 @@ body {
     font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
 }
 
+#disclaimer {
+    position: fixed;
+    width: 100%;
+    left: 0;
+    bottom: 0;
+    text-align: center;
+    padding: 4px;
+    font-size: 10px;
+    background-color: white;
+    margin-bottom: 0px;
+    margin-top: 0px;
+    box-sizing: border-box;
+}
+
 #err_msg {
     color: red;
 }
 
 /* Style the app logo at the center top of the page */ 
-.logo{
+#logo{
     position: relative;
-    top: 5%; 
-    left: 1%;
-    width: 99%; 
+    margin-top: 10px;
+    margin-left: 2.5%;
+    align-items: center;
 }
 
 /* Style the search menu */
