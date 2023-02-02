@@ -62,6 +62,7 @@
                     </button>
                     <div class="panel">
                         <ul>
+                            <!-- Question type -->
                             <li>Question type: {{ question.get_question_type_display }}</li>
                             <!-- Update difficulty_filter.js if changing <li> here -->
                             {% if question.difficulty == "EA" %}
@@ -73,13 +74,18 @@
                             {% else %}
                                 <li class="difficulty">Difficulty: Unclassified</li>
                             {% endif %}
+                            <!-- Completion count -->
                             <li>Number of times completed: {{ question.completion_count }}</li>
+                            <!-- Average completion time spent -->
+                            {% if question.completion_count > 0 %}
+                                <li>Average time spent: {{ question.get_avg_time }}</li>
+                            {% endif %}
                         </ul>
                         <!-- Button to start the question -->
                         {% if user.etype == question.allowed_etype or question.allowed_etype == "all" %}
                             {% if question|stringformat:"s" in user.completed_history.keys %}
                                 <p>You have completed this question before ...</p>
-                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
+                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id 1 %}">
                                     <input type="submit" value="Retry this question"/>
                                 </form>
                                 <form action="{% url 'questioner:complete' question.question_type question.question_id user.os_user_id %}">
@@ -87,7 +93,7 @@
                                     <input type="submit" value="View best performance"/>
                                 </form>
                             {% else %}
-                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id %}">
+                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id 1 %}">
                                     <input type="submit" value="Start this question"/>
                                 </form>
                             {% endif %}

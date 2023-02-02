@@ -218,6 +218,16 @@ class Question(models.Model):
         # Text/String representation of the question 
         return self.question_type + "_" + str(self.question_id)
 
+    def get_avg_time(self) -> str: 
+        # Get average completion time required for the question 
+        if self.completion_count > 0: 
+            avg_time = np.mean(self.completion_time)
+            return "{} minutes {} seconds".format(
+                int(avg_time // 60), round(divmod(avg_time, 60)[1])
+            )
+        else: 
+            return ""
+
     def publishable(self) -> bool: 
         if self.question_name and self.os_drawing_eid: 
             return True 

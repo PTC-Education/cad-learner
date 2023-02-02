@@ -37,7 +37,7 @@ def login(request: HttpRequest):
         # Check if user is modelling 
         if (
             user.modelling and 
-            user.last_start + timedelta(hours=1) < timezone.now() and 
+            user.last_start + timedelta(hours=1) >= timezone.now() and 
             user.eid == request.GET.get('eid')
         ): 
             # Refresh token if needed 
@@ -46,7 +46,7 @@ def login(request: HttpRequest):
             # Redirect to modelling page 
             return HttpResponseRedirect(reverse(
                 "questioner:modelling", 
-                args=[user.curr_question_type, user.curr_question_id, user.os_user_id]
+                args=[user.curr_question_type, user.curr_question_id, user.os_user_id, 0]
             )) 
     except ObjectDoesNotExist: 
         # Create a new user 
@@ -127,7 +127,7 @@ def index(request: HttpRequest, os_user_id: str):
     )
 
 
-def model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
+def model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, initiate: int): 
     """ The view that the users see when working on a question. 
     It provides all necessary information and instructions for the 
     question. When the user finishes, they should be able to submit 
@@ -138,68 +138,73 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
         return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
     
-    # Check if the user is starting with an empty part studio or assembly 
-    response = requests.get(
-        os.path.join(
-            curr_user.os_domain,
-            "api/{}/d/{}/w/{}/e/{}/features".format(
-                curr_user.etype, curr_user.did, curr_user.wid, curr_user.eid
-            )
-        ), 
-        headers={
-            "Content-Type": "application/json", 
-            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization": "Bearer " + curr_user.access_token
-        }
-    )
-    if response.ok: 
-        response = response.json()
-        if len(response['features']) > 0: 
-            return render(
-                request, "questioner/index.html", 
-                context={
-                    "user": curr_user, 
-                    "questions": Question.objects.filter(published=True).order_by("question_name"), 
-                    "error_message": "Please start with an empty part studio and relaunch this app ..."
-                }
-            )
-    else: 
-        return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
+    if initiate: 
+        # Refresh token if needed 
+        if curr_user.expires_at < timezone.now() + timedelta(hours=1): 
+            curr_user.refresh_oauth_token() 
+        
+        # Check if the user is starting with an empty part studio or assembly 
+        response = requests.get(
+            os.path.join(
+                curr_user.os_domain,
+                "api/{}/d/{}/w/{}/e/{}/features".format(
+                    curr_user.etype, curr_user.did, curr_user.wid, curr_user.eid
+                )
+            ), 
+            headers={
+                "Content-Type": "application/json", 
+                "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+                "Authorization": "Bearer " + curr_user.access_token
+            }
+        )
+        if response.ok: 
+            response = response.json()
+            if len(response['features']) > 0: 
+                return render(
+                    request, "questioner/index.html", 
+                    context={
+                        "user": curr_user, 
+                        "questions": Question.objects.filter(published=True).order_by("question_name"), 
+                        "error_message": "Please start with an empty part studio and relaunch this app ..."
+                    }
+                )
+        else: 
+            return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
 
-    # Run any start modelling process 
-    curr_user.add_field = {} # clean field 
-    curr_user.save() 
-    initiate_succ = curr_que.initiate_actions(curr_user)
-    if not initiate_succ: 
-        return HttpResponse("Failed to start the question. Please relaunch the app and try again ...")
+        # Run any start modelling process 
+        curr_user.add_field = {} # clean field 
+        curr_user.save() 
+        initiate_succ = curr_que.initiate_actions(curr_user)
+        if not initiate_succ: 
+            return HttpResponse("Failed to start the question. Please relaunch the app and try again ...")
 
-    # Okay to start modelling 
-    curr_user.modelling = True 
-    curr_user.last_start = timezone.now() 
-    curr_user.curr_question_type = curr_que.question_type
-    curr_user.curr_question_id = curr_que.question_id 
-    curr_user.end_mid = None
+        # Okay to start modelling 
+        curr_user.modelling = True 
+        curr_user.last_start = timezone.now() 
+        curr_user.curr_question_type = curr_que.question_type
+        curr_user.curr_question_id = curr_que.question_id 
+        curr_user.end_mid = None
 
-    # Get current microversion ID 
-    response = requests.get(
-        os.path.join(
-            curr_user.os_domain, 
-            "api/documents/d/{}/w/{}/currentmicroversion".format(
-                curr_user.did, curr_user.wid, curr_user.eid
-            )
-        ), 
-        headers={
-            "Content-Type": "application/json", 
-            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization": "Bearer " + curr_user.access_token
-        }
-    )
-    if response.ok: 
-        response = response.json() 
-        curr_user.start_mid = response['microversion']
-    else: 
-        curr_user.start_mid = None 
-    curr_user.save() 
+        # Get current microversion ID 
+        response = requests.get(
+            os.path.join(
+                curr_user.os_domain, 
+                "api/documents/d/{}/w/{}/currentmicroversion".format(
+                    curr_user.did, curr_user.wid, curr_user.eid
+                )
+            ), 
+            headers={
+                "Content-Type": "application/json", 
+                "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+                "Authorization": "Bearer " + curr_user.access_token
+            }
+        )
+        if response.ok: 
+            response = response.json() 
+            curr_user.start_mid = response['microversion']
+        else: 
+            curr_user.start_mid = None 
+        curr_user.save() 
 
     return render(
         request, "questioner/modelling.html", 
@@ -221,6 +226,10 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
         return HttpResponseNotFound("Question type not found") 
     curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
 
+    # Refresh token if needed 
+    if curr_user.expires_at < timezone.now() + timedelta(minutes=20): 
+        curr_user.refresh_oauth_token() 
+    
     response = curr_que.evaluate(curr_user)
 
     if not response: 
