@@ -49,7 +49,7 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
     search_fields = ['question_name']
     actions = ['publish_question']
 
-    @admin.action(description="Publish/Hide questions")
+    @admin.action(description="Publish/Hide selected questions")
     def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
         for item in queryset: 
             item.publish() 
@@ -68,8 +68,8 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
     search_fields = ['question_name']
     actions = ['publish_question']
 
-    @admin.action(description="Publish/Hide questions")
-    def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
+    @admin.action(description="Publish/Hide selected questions")
+    def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_MPPS]) -> None: 
         for item in queryset: 
             item.publish() 
 
