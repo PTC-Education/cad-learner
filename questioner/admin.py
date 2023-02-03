@@ -1,4 +1,3 @@
-from typing import Any
 from django.contrib import admin
 from django.http import HttpRequest
 from django.db.models import QuerySet
@@ -14,7 +13,7 @@ class Reviewer_Admin(admin.ModelAdmin):
     readonly_fields = ['user_name', 'is_active']
     actions = ['change_status']
 
-    @admin.action(description="Activate/Inactivate reviewer")
+    @admin.action(description="Activate/Deactivate selected reviewers")
     def change_status(self, request: HttpRequest, queryset: QuerySet[Reviewer]) -> None:
         """ Change the reviewers' status from active to inactive, and vice versa 
         """

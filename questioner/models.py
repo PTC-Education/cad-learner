@@ -349,13 +349,13 @@ class Question_SPPS(Question):
         """
         return True 
 
-    def evaluate(self, user: AuthUser) -> Union[str, bool]: 
+    def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
         """ Given the user submiting a model for evaluation, this function checks if the 
         user model matches the reference model. 
         - If evaluation passed, True is returned. 
         - If evaluation cannot proceed due to API errors, False is returned. 
         - If evaluation found mismatch, a table showing the difference is returned to 
-          be displayed in the HTML page. 
+          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
         """
         # Get info from user model 
         feature_list = get_feature_list(user)
@@ -374,6 +374,10 @@ class Question_SPPS(Question):
         for fea in feature_list['features']: 
             if fea['featureType'] == 'importDerived': 
                 return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ...", False 
+
+        # Check if mass is given 
+        if not mass_prop['bodies']['-all-']['hasmass']: 
+            return "Please remember to assign a material to your part.", False
 
         # Compare property values 
         ref_model = [self.model_mass, self.model_volume, self.model_SA, self.model_inertia[0]]
@@ -407,6 +411,7 @@ class Question_SPPS(Question):
         if not check_pass: 
             # Prepare error message 
             fail_msg = '''
+            <h3>You are almost there!</h3>
             <table>
                 <tr>
                     <th>Properties</th>
@@ -636,7 +641,7 @@ class Question_MPPS(Question):
                 eval_result.count(True), len(eval_result)
             )
 
-    def evaluate(self, user: AuthUser) -> Union[Tuple[Union[str, bool]], bool]: 
+    def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
         """ Given the user submiting a model for evaluation, this function checks if the 
         user model matches the reference model. 
         - If evaluation passed, True is returned. 
