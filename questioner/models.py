@@ -360,7 +360,7 @@ class Question_SPPS(Question):
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
             user.did, "w", user.wid, user.eid, user.etype, massAsGroup=True,
-            auth_token="Bearer " + user.access_token
+            auth_token=user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
@@ -644,7 +644,7 @@ class Question_MPPS(Question):
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
             user.did, "w", user.wid, user.eid, user.etype, massAsGroup=False, 
-            auth_token="Bearer " + user.access_token
+            auth_token=user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
@@ -757,13 +757,27 @@ class Question_MPPS(Question):
 
 #################### Helper API calls ####################
 _Q_TYPES = Union[Question_SPPS, Question_MPPS] # for function argument hints 
-# TODO: better authentication method pending for API calls 
-API_KEY = "Basic " + base64.b64encode(
-    (os.environ['ADMIN_ACCESS'] + ":" + os.environ['ADMIN_SECRET']).encode()
-).decode()
 
 
-def get_thumbnail(question: _Q_TYPES, auth_token=API_KEY) -> str: 
+def get_admin_token() -> str: 
+    """ Get a token (refresh if needed) from one of the main admins, 
+    as defined in the Reviewer model, to complete question management 
+    related actions 
+    """
+    # Get one main admin user 
+    try: 
+        admin_user = AuthUser.objects.get(
+            os_user_id=Reviewer.objects.filter(is_main_admin=True)[0].os_user_id
+        )
+    except Exception: 
+        raise ValidationError("No main admin users have been assigned from the reviewers yet.")
+    # Refresh token if needed 
+    if admin_user.expires_at < timezone.now() + timedelta(hours=1): 
+        admin_user.refresh_oauth_token() 
+    return admin_user.access_token
+
+
+def get_thumbnail(question: _Q_TYPES, auth_token=get_admin_token()) -> str: 
     """Get a thumbnail image of the question for display 
     """
     response = requests.get(
@@ -779,7 +793,7 @@ def get_thumbnail(question: _Q_TYPES, auth_token=API_KEY) -> str:
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization": auth_token
+            "Authorization": "Bearer " + auth_token
         }
     )
     
@@ -789,7 +803,7 @@ def get_thumbnail(question: _Q_TYPES, auth_token=API_KEY) -> str:
         return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAy0lEQVRIie2VXQ6CMBCEP7yDXkEjeA/x/icQgrQcAh9czKZ0qQgPRp1kk4ZZZvYnFPhjJi5ABfRvRgWUUwZLxIe4asEsMOhndmzhqbtZSdDExxh0EhacRBIt46V5oJDwEd4BuYQjscc90ATiJ8UfgFvEXPNNqotCKtEvF8HZS87wLAeOijeRTwhahsNoWmVi4pWRhLweqe4qCp1kLVUv3UX4VgtaX7IXbmsU0knuzuCz0SEwWIovvirqFTSrKbLkcZ8v+RecVyjyl3AHdAl3ObMLisAAAAAASUVORK5CYII="
 
 
-def get_jpeg_drawing(question: _Q_TYPES, auth_token=API_KEY) -> str: 
+def get_jpeg_drawing(question: _Q_TYPES, auth_token=get_admin_token()) -> str: 
     """ Get the JPEG version of the drawing to be displayed when modelling 
     """
     response = requests.get(
@@ -799,7 +813,7 @@ def get_jpeg_drawing(question: _Q_TYPES, auth_token=API_KEY) -> str:
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/octet-stream;charset=UTF-8;qs=0.09", 
-            "Authorization" : auth_token
+            "Authorization" : "Bearer " + auth_token
         }
     )
     
@@ -811,7 +825,8 @@ def get_jpeg_drawing(question: _Q_TYPES, auth_token=API_KEY) -> str:
 
 
 def get_mass_properties(
-    did: str, wvm: str, wvmid: str, eid: str, etype: str, massAsGroup=True, auth_token=API_KEY
+    did: str, wvm: str, wvmid: str, eid: str, etype: str, massAsGroup=True, 
+    auth_token=get_admin_token()
 ) -> Any: 
     """ Get the mass and geometry properties of the given element 
     """
@@ -822,7 +837,7 @@ def get_mass_properties(
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization" : auth_token
+            "Authorization" : "Bearer " + auth_token
         }, 
         params={
             "massAsGroup": massAsGroup
@@ -878,7 +893,7 @@ def get_microversion(user: AuthUser) -> Union[str, None]:
         return None 
 
 
-def get_elements(question: _Q_TYPES, elementId=None, auth_token=API_KEY) -> Any: 
+def get_elements(question: _Q_TYPES, elementId=None, auth_token=get_admin_token()) -> Any: 
     """ Get all elements in a document's version and their information 
     """
     response = requests.get(
@@ -888,7 +903,7 @@ def get_elements(question: _Q_TYPES, elementId=None, auth_token=API_KEY) -> Any:
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization" : auth_token
+            "Authorization" : "Bearer " + auth_token
         }, 
         params={
             "elementId": elementId
