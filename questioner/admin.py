@@ -2,16 +2,39 @@ from typing import Any
 from django.contrib import admin
 from django.http import HttpRequest
 from django.db.models import QuerySet
-from .models import Reviewer, Question_SPPS, Question_MPPS
+from .models import AuthUser, Reviewer, Question_SPPS, Question_MPPS
 
 
 # Register your models here.
 class Reviewer_Admin(admin.ModelAdmin): 
     list_display = [
-        'os_user_id', 'user_name', 'is_main_admin'
+        'os_user_id', 'user_name', 'is_active', 'is_main_admin'
     ] 
     search_fields = ['user_name']
-    readonly_fields = ['user_name']
+    readonly_fields = ['user_name', 'is_active']
+    actions = ['change_status']
+
+    @admin.action(description="Activate/Inactivate reviewer")
+    def change_status(self, request: HttpRequest, queryset: QuerySet[Reviewer]) -> None:
+        """ Change the reviewers' status from active to inactive, and vice versa 
+        """
+        for item in queryset: 
+            user = AuthUser.objects.get(os_user_id=item.os_user_id)
+            if item.is_active: 
+                item.is_active = False 
+                user.is_reviewer = False 
+            else: 
+                item.is_active = True 
+                user.is_reviewer = True 
+            item.save() 
+            user.save() 
+
+    def delete_queryset(self, request: HttpRequest, queryset: QuerySet[Reviewer]) -> None:
+        """ Override the default delete function 
+        """
+        for item in queryset: 
+            item.delete()
+        return super().delete_queryset(request, queryset)
 
 
 class Questions_SPPS_Admin(admin.ModelAdmin): 

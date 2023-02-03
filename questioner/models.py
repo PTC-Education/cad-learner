@@ -130,6 +130,7 @@ class Reviewer(models.Model):
     os_user_id = models.CharField(max_length=30, default=None, unique=True)
     user_name = models.CharField(max_length=500, default=None, unique=True)
     is_main_admin = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
 
     def __str__(self) -> str:
         return self.user_name
