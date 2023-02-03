@@ -36,7 +36,7 @@ def login(request: HttpRequest):
         user = AuthUser.objects.get(os_user_id=user_id)
         # Check if user is modelling 
         if (
-            user.modelling and 
+            user.is_modelling and 
             user.last_start + timedelta(hours=1) >= timezone.now() and 
             user.eid == request.GET.get('eid')
         ): 
@@ -118,13 +118,13 @@ def index(request: HttpRequest, os_user_id: str):
     in categories of difficulties. 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    return render(
-        request, "questioner/index.html", 
-        context={
-            "user": curr_user, 
-            "questions": Question.objects.filter(published=True).order_by("question_name")
-        }
-    )
+
+    context = {"user": curr_user}
+    if curr_user.is_reviewer: 
+        context["questions"] = Question.objects.order_by("question_name")
+    else: 
+        context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+    return render(request, "questioner/index.html", context=context)
 
 
 def model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, initiate: int): 
@@ -164,7 +164,7 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
                     request, "questioner/index.html", 
                     context={
                         "user": curr_user, 
-                        "questions": Question.objects.filter(published=True).order_by("question_name"), 
+                        "questions": Question.objects.filter(is_published=True).order_by("question_name"), 
                         "error_message": "Please start with an empty part studio and relaunch this app ..."
                     }
                 )
@@ -179,7 +179,7 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
             return HttpResponse("Failed to start the question. Please relaunch the app and try again ...")
 
         # Okay to start modelling 
-        curr_user.modelling = True 
+        curr_user.is_modelling = True 
         curr_user.last_start = timezone.now() 
         curr_user.curr_question_type = curr_que.question_type
         curr_user.curr_question_id = curr_que.question_id 
@@ -236,7 +236,8 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
     elif type(response) is bool: 
         # Initiate data collection from data miner 
-        collect_final_data(curr_user)
+        if curr_que.is_published: 
+            collect_final_data(curr_user)
         # Redirect to complete page 
         return HttpResponseRedirect(reverse(
             "questioner:complete", args=[
@@ -244,7 +245,7 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
             ]
         ))
     else: 
-        if response[1]: # initiate failure attempt collection 
+        if curr_que.is_published and response[1]: # initiate failure attempt collection 
             collect_fail_data(curr_user)
         return render(
             request, "questioner/modelling.html", 

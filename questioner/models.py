@@ -35,7 +35,7 @@ import os
 import requests
 import base64
 from datetime import datetime, timedelta
-from typing import Union, Tuple, Any
+from typing import Union, Tuple, Dict, Any
 
 import numpy as np 
 import numpy.typing as npt 
@@ -45,6 +45,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy 
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 
 
 #################### Create your models here ####################
@@ -65,6 +66,7 @@ class ElementType(models.TextChoices):
 
 class AuthUser(models.Model): 
     os_user_id = models.CharField(max_length=30, default=None, unique=True)
+    is_reviewer = models.BooleanField(default=False)
     
     os_domain = models.URLField(max_length=100, null=True)
     did = models.CharField(max_length=30, null=True)
@@ -76,7 +78,7 @@ class AuthUser(models.Model):
     refresh_token = models.CharField(max_length=100, null=True)
     expires_at = models.DateTimeField(null=True)
 
-    modelling = models.BooleanField(default=False)
+    is_modelling = models.BooleanField(default=False)
     # The following fields are only applicable when modelling 
     last_start = models.DateTimeField(null=True) 
     curr_question_type = models.CharField(max_length=4, choices=QuestionType.choices, null=True)
@@ -119,6 +121,49 @@ class AuthUser(models.Model):
 
     def __str__(self) -> str:
         return self.os_user_id
+
+
+class Reviewer(models.Model): 
+    """ A reviewer has the access to view unpublished questions, 
+    such that they can try out and review the question. 
+    """
+    os_user_id = models.CharField(max_length=30, default=None, unique=True)
+    user_name = models.CharField(max_length=500, default=None, unique=True)
+    is_main_admin = models.BooleanField(default=False)
+
+    def __str__(self) -> str:
+        return self.user_name
+
+    def save(self, *args, **kwargs): 
+        try: 
+            user = AuthUser.objects.get(os_user_id=self.os_user_id)
+            user.is_reviewer = True
+            user.save() 
+        except ObjectDoesNotExist: 
+            raise ValidationError("Reviewers need to first subscribe and open the app once before they can be added ...")
+        
+        if not self.user_name: 
+            if user.expires_at < timezone.now() + timedelta(minutes=10): 
+                user.refresh_oauth_token() 
+            
+            response = requests.get(
+                "https://cad.onshape.com/api/users/sessioninfo", 
+                headers={
+                    "Content-Type": "application/json", 
+                    "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+                    "Authorization" : "Bearer " + user.access_token
+                }
+            )
+            if response.ok: 
+                response = response.json() 
+                self.user_name = response['name']
+        return super().save(*args, **kwargs)
+    
+    def delete(self, using: Any = ..., keep_parents: bool = ...) -> Tuple[int, Dict[str, int]]:
+        user = AuthUser.objects.get(os_user_id=self.os_user_id)
+        user.is_reviewer = False 
+        user.save() 
+        return super().delete(using, keep_parents)
 
 
 class Question(models.Model): 
@@ -194,6 +239,9 @@ class Question(models.Model):
     completion_time = models.JSONField(
         default=list, help_text="List of completion time (in seconds) by users in history"
     )
+    reviewer_completion_count = models.PositiveIntegerField(
+        default=0, help_text="The number of times this question is completed by reviewers"
+    )
 
     # Admin-specified parameters for the question 
     question_name = models.CharField(
@@ -210,7 +258,7 @@ class Question(models.Model):
     drawing_jpeg = models.TextField(null=True)
     
     # This boolean indicates when the system check is passed 
-    published = models.BooleanField(
+    is_published = models.BooleanField(
         default=False, help_text="Users can only access the model after it is published"
     )
 
@@ -286,12 +334,12 @@ class Question_SPPS(Question):
         verbose_name = "Single-part Part Studio Question"
 
     def publish(self) -> None: 
-        if self.published: 
-            self.published = False 
+        if self.is_published: 
+            self.is_published = False 
         else: 
             # Check if necessary information is present
             if self.publishable() and self.model_mass: 
-                self.published = True 
+                self.is_published = True 
         self.save() 
         return None 
 
@@ -312,7 +360,7 @@ class Question_SPPS(Question):
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
             user.did, "w", user.wid, user.eid, user.etype, massAsGroup=True,
-            auth_token="Bearer " + user.access_token
+            auth_token=user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
@@ -396,7 +444,7 @@ class Question_SPPS(Question):
             self.save()
 
             user.end_mid = end_mid
-            user.modelling = False 
+            user.is_modelling = False 
             if str(self) in user.completed_history: 
                 user.completed_history[str(self)].append((
                     datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
@@ -434,6 +482,7 @@ class Question_SPPS(Question):
     def save(self, *args, **kwargs): 
         self.question_type = QuestionType.SINGLE_PART_PS
         self.etype = ElementType.PARTSTUDIO
+        self.allowed_etype = ElementType.PARTSTUDIO
         if not self.model_mass: 
             mass_prop = get_mass_properties(
                 self.did, "v", self.vid, self.eid, self.etype, massAsGroup=True
@@ -473,15 +522,15 @@ class Question_MPPS(Question):
         verbose_name = "Multi-part Part Studio Question"
 
     def publish(self) -> None: 
-        if self.published: 
-            self.published = False 
+        if self.is_published: 
+            self.is_published = False 
         else: 
             # Check if necessary information is present 
             if (
                 self.publishable() and self.model_mass and 
                 (not self.starting_eid or self.mid)
             ): 
-                self.published = True 
+                self.is_published = True 
         self.save() 
         return None 
 
@@ -595,7 +644,7 @@ class Question_MPPS(Question):
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
             user.did, "w", user.wid, user.eid, user.etype, massAsGroup=False, 
-            auth_token="Bearer " + user.access_token
+            auth_token=user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
@@ -646,7 +695,7 @@ class Question_MPPS(Question):
             self.save()
 
             user.end_mid = end_mid
-            user.modelling = False 
+            user.is_modelling = False 
             if str(self) in user.completed_history: 
                 user.completed_history[str(self)].append((
                     datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
@@ -708,13 +757,27 @@ class Question_MPPS(Question):
 
 #################### Helper API calls ####################
 _Q_TYPES = Union[Question_SPPS, Question_MPPS] # for function argument hints 
-# TODO: better authentication method pending for API calls 
-API_KEY = "Basic " + base64.b64encode(
-    (os.environ['ADMIN_ACCESS'] + ":" + os.environ['ADMIN_SECRET']).encode()
-).decode()
 
 
-def get_thumbnail(question: _Q_TYPES, auth_token=API_KEY) -> str: 
+def get_admin_token() -> str: 
+    """ Get a token (refresh if needed) from one of the main admins, 
+    as defined in the Reviewer model, to complete question management 
+    related actions 
+    """
+    # Get one main admin user 
+    try: 
+        admin_user = AuthUser.objects.get(
+            os_user_id=Reviewer.objects.filter(is_main_admin=True)[0].os_user_id
+        )
+    except Exception: 
+        raise ValidationError("No main admin users have been assigned from the reviewers yet.")
+    # Refresh token if needed 
+    if admin_user.expires_at < timezone.now() + timedelta(hours=1): 
+        admin_user.refresh_oauth_token() 
+    return admin_user.access_token
+
+
+def get_thumbnail(question: _Q_TYPES, auth_token=get_admin_token()) -> str: 
     """Get a thumbnail image of the question for display 
     """
     response = requests.get(
@@ -730,7 +793,7 @@ def get_thumbnail(question: _Q_TYPES, auth_token=API_KEY) -> str:
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization": auth_token
+            "Authorization": "Bearer " + auth_token
         }
     )
     
@@ -740,7 +803,7 @@ def get_thumbnail(question: _Q_TYPES, auth_token=API_KEY) -> str:
         return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAy0lEQVRIie2VXQ6CMBCEP7yDXkEjeA/x/icQgrQcAh9czKZ0qQgPRp1kk4ZZZvYnFPhjJi5ABfRvRgWUUwZLxIe4asEsMOhndmzhqbtZSdDExxh0EhacRBIt46V5oJDwEd4BuYQjscc90ATiJ8UfgFvEXPNNqotCKtEvF8HZS87wLAeOijeRTwhahsNoWmVi4pWRhLweqe4qCp1kLVUv3UX4VgtaX7IXbmsU0knuzuCz0SEwWIovvirqFTSrKbLkcZ8v+RecVyjyl3AHdAl3ObMLisAAAAAASUVORK5CYII="
 
 
-def get_jpeg_drawing(question: _Q_TYPES, auth_token=API_KEY) -> str: 
+def get_jpeg_drawing(question: _Q_TYPES, auth_token=get_admin_token()) -> str: 
     """ Get the JPEG version of the drawing to be displayed when modelling 
     """
     response = requests.get(
@@ -750,7 +813,7 @@ def get_jpeg_drawing(question: _Q_TYPES, auth_token=API_KEY) -> str:
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/octet-stream;charset=UTF-8;qs=0.09", 
-            "Authorization" : auth_token
+            "Authorization" : "Bearer " + auth_token
         }
     )
     
@@ -762,7 +825,8 @@ def get_jpeg_drawing(question: _Q_TYPES, auth_token=API_KEY) -> str:
 
 
 def get_mass_properties(
-    did: str, wvm: str, wvmid: str, eid: str, etype: str, massAsGroup=True, auth_token=API_KEY
+    did: str, wvm: str, wvmid: str, eid: str, etype: str, massAsGroup=True, 
+    auth_token=get_admin_token()
 ) -> Any: 
     """ Get the mass and geometry properties of the given element 
     """
@@ -773,7 +837,7 @@ def get_mass_properties(
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization" : auth_token
+            "Authorization" : "Bearer " + auth_token
         }, 
         params={
             "massAsGroup": massAsGroup
@@ -829,7 +893,7 @@ def get_microversion(user: AuthUser) -> Union[str, None]:
         return None 
 
 
-def get_elements(question: _Q_TYPES, elementId=None, auth_token=API_KEY) -> Any: 
+def get_elements(question: _Q_TYPES, elementId=None, auth_token=get_admin_token()) -> Any: 
     """ Get all elements in a document's version and their information 
     """
     response = requests.get(
@@ -839,7 +903,7 @@ def get_elements(question: _Q_TYPES, elementId=None, auth_token=API_KEY) -> Any:
         headers={
             "Content-Type": "application/json", 
             "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-            "Authorization" : auth_token
+            "Authorization" : "Bearer " + auth_token
         }, 
         params={
             "elementId": elementId

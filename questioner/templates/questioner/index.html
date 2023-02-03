@@ -34,22 +34,34 @@
         <!-- Buttons to filter by difficulty levels -->
         <div class="btn-group">
             <div>
-                <input type="radio" name="radio" class="radio" id="all_q" onclick="search_filter()" checked />
+                <input type="radio" name="user" class="radio" id="all_q" onclick="search_filter()" checked />
                 <label for="all_q">All</label>
             </div>
             <div>
-                <input type="radio" name="radio" class="radio" id="easy_q" onclick="search_filter()" />
+                <input type="radio" name="user" class="radio" id="easy_q" onclick="search_filter()" />
                 <label for="easy_q">Easy</label>
             </div>
             <div>
-                <input type="radio" name="radio" class="radio" id="med_q" onclick="search_filter()" />
+                <input type="radio" name="user" class="radio" id="med_q" onclick="search_filter()" />
                 <label for="med_q">Medium</label>
             </div>
             <div>
-                <input type="radio" name="radio" class="radio" id="hard_q" onclick="search_filter()" />
+                <input type="radio" name="user" class="radio" id="hard_q" onclick="search_filter()" />
                 <label for="hard_q">Challenging</label>
             </div>
         </div>
+        <!-- Allow filtering of unpublished questions for reviewers-->
+        <input type="hidden" id="is_reviewer" value="{{ user.is_reviewer }}" />
+        {% if user.is_reviewer %}
+            <div>
+                <input type="radio" name="rev" id="rev_all" onclick="search_filter()" checked/>
+                <label for="rev_all">All Questions</label>
+                <input type="radio" name="rev" id="rev_pub" onclick="search_filter()" />
+                <label for="rev_pub">Published Only</label>
+                <input type="radio" name="rev" id="rev_unpub" onclick="search_filter()" />
+                <label for="rev_unpub">Unpublished Only</label>
+            </div>
+        {% endif %}
         <br /><br />
         <!-- List all available questions -->
         <section id="menu">
@@ -73,6 +85,14 @@
                                 <li class="difficulty">Difficulty: Challenging</li>
                             {% else %}
                                 <li class="difficulty">Difficulty: Unclassified</li>
+                            {% endif %}
+                            <!-- Label unpublished questions for reviewers -->
+                            {% if user.is_reviewer %}
+                                {% if question.is_published %}
+                                    <li class="availability">Availability: Published</li>
+                                {% else %}
+                                    <li class="availability">Availability: Unpublished</li>
+                                {% endif %}
                             {% endif %}
                             <!-- Completion count -->
                             <li>Number of times completed: {{ question.completion_count }}</li>
@@ -104,11 +124,12 @@
                 </div>
             {% endfor %}
         </section>
-        <!-- Enable hide-and-show for accordions -->
-        <script src="{% static 'questioner/accordion.js' %}" type="text/javascript"></script>
+        <br /><br />
         <!-- Disclaimer -->
         <div>
-            <p id="disclaimer"><b>DISCLAIMER: </b>By using this app you are agreeing to have anonymized data about your modeling recorded and used for research purposes.</p>
+            <p id="disclaimer"><b>DISCLAIMER: </b>By using this app you are agreeing to have anonymized data about your modelling process recorded and used for research purposes.</p>
         </div>
+        <!-- Enable hide-and-show for accordions -->
+        <script src="{% static 'questioner/accordion.js' %}" type="text/javascript"></script>
     </body>
 </html>

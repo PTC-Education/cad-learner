@@ -102,6 +102,7 @@ class HistoryData_PS(HistoryData):
             "BLB": get_shaded_view(user, q_info, view_mat=BLB_VIEW_MAT)
         }
         self.failed_mesh = get_stl_mesh(user, q_info)
+        self.final_query_complete_time = timezone.now() 
         self.save() 
         return None 
 
