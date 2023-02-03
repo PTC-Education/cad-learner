@@ -376,7 +376,7 @@ class Question_SPPS(Question):
                 return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ...", False 
 
         # Check if mass is given 
-        if not mass_prop['bodies']['-all-']['hasmass']: 
+        if not mass_prop['bodies']['-all-']['hasMass']: 
             return "Please remember to assign a material to your part.", False
 
         # Compare property values 
