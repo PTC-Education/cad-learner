@@ -312,9 +312,9 @@ class Question(models.Model):
 
     def save(self, *args, **kwargs): 
         if not self.thumbnail: 
-            self.thumbnail = get_thumbnail(self) 
+            self.thumbnail = get_thumbnail(self, get_admin_token()) 
         if not self.drawing_jpeg: 
-            self.drawing_jpeg = get_jpeg_drawing(self)
+            self.drawing_jpeg = get_jpeg_drawing(self, get_admin_token())
         return super().save(*args, **kwargs)
 
 
@@ -441,6 +441,8 @@ class Question_SPPS(Question):
             self.completion_count += 1
             self.completion_time.append(time_spent)
             self.completion_feature_cnt.append(feature_cnt)
+            if user.is_reviewer: 
+                self.reviewer_completion_count += 1
             self.save()
 
             user.end_mid = end_mid
@@ -485,7 +487,8 @@ class Question_SPPS(Question):
         self.allowed_etype = ElementType.PARTSTUDIO
         if not self.model_mass: 
             mass_prop = get_mass_properties(
-                self.did, "v", self.vid, self.eid, self.etype, massAsGroup=True
+                self.did, "v", self.vid, self.eid, self.etype, 
+                auth_token=get_admin_token(), massAsGroup=True
             )
             if mass_prop: 
                 self.model_mass = mass_prop['bodies']['-all-']['mass'][0]
@@ -692,6 +695,8 @@ class Question_MPPS(Question):
             self.completion_count += 1
             self.completion_time.append(time_spent)
             self.completion_feature_cnt.append(feature_cnt)
+            if user.is_reviewer: 
+                self.reviewer_completion_count += 1
             self.save()
 
             user.end_mid = end_mid
@@ -735,12 +740,13 @@ class Question_MPPS(Question):
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
         if self.starting_eid and not self.mid: 
-            ele_info = get_elements(self, self.starting_eid)
+            ele_info = get_elements(self, auth_token=get_admin_token(), elementId=self.starting_eid)
             if ele_info: 
                 self.mid = ele_info[0]['microversionId']
         if not self.model_mass: 
             mass_prop = get_mass_properties(
-                self.did, "v", self.vid, self.eid, self.etype, massAsGroup=False 
+                self.did, "v", self.vid, self.eid, self.etype, 
+                auth_token=get_admin_token(), massAsGroup=False 
             )
             if mass_prop: 
                 self.model_mass = [
@@ -777,7 +783,7 @@ def get_admin_token() -> str:
     return admin_user.access_token
 
 
-def get_thumbnail(question: _Q_TYPES, auth_token=get_admin_token()) -> str: 
+def get_thumbnail(question: _Q_TYPES, auth_token: str) -> str: 
     """Get a thumbnail image of the question for display 
     """
     response = requests.get(
@@ -803,7 +809,7 @@ def get_thumbnail(question: _Q_TYPES, auth_token=get_admin_token()) -> str:
         return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAy0lEQVRIie2VXQ6CMBCEP7yDXkEjeA/x/icQgrQcAh9czKZ0qQgPRp1kk4ZZZvYnFPhjJi5ABfRvRgWUUwZLxIe4asEsMOhndmzhqbtZSdDExxh0EhacRBIt46V5oJDwEd4BuYQjscc90ATiJ8UfgFvEXPNNqotCKtEvF8HZS87wLAeOijeRTwhahsNoWmVi4pWRhLweqe4qCp1kLVUv3UX4VgtaX7IXbmsU0knuzuCz0SEwWIovvirqFTSrKbLkcZ8v+RecVyjyl3AHdAl3ObMLisAAAAAASUVORK5CYII="
 
 
-def get_jpeg_drawing(question: _Q_TYPES, auth_token=get_admin_token()) -> str: 
+def get_jpeg_drawing(question: _Q_TYPES, auth_token: str) -> str: 
     """ Get the JPEG version of the drawing to be displayed when modelling 
     """
     response = requests.get(
@@ -825,8 +831,7 @@ def get_jpeg_drawing(question: _Q_TYPES, auth_token=get_admin_token()) -> str:
 
 
 def get_mass_properties(
-    did: str, wvm: str, wvmid: str, eid: str, etype: str, massAsGroup=True, 
-    auth_token=get_admin_token()
+    did: str, wvm: str, wvmid: str, eid: str, etype: str, auth_token: str, massAsGroup=True
 ) -> Any: 
     """ Get the mass and geometry properties of the given element 
     """
@@ -893,7 +898,7 @@ def get_microversion(user: AuthUser) -> Union[str, None]:
         return None 
 
 
-def get_elements(question: _Q_TYPES, elementId=None, auth_token=get_admin_token()) -> Any: 
+def get_elements(question: _Q_TYPES, auth_token: str, elementId=None) -> Any: 
     """ Get all elements in a document's version and their information 
     """
     response = requests.get(
