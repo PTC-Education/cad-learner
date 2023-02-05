@@ -1,3 +1,8 @@
+body {
+    color: #333;
+    font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
+}
+
 /* Style the statistics image */ 
 img {
     width: 80%;

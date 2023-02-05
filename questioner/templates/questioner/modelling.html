@@ -4,7 +4,7 @@
         {% load static %}
         <link rel="stylesheet" href="{% static 'questioner/modelling.css' %}">
         <!-- Load pop-up alert when user trying to go back to index while modelling -->
-        <script src="{% static 'questioner/return_alert.js' %}" type="text/javascript"></script>
+        <script src="{% static 'questioner/modelling.js' %}" type="text/javascript"></script>
     </head>
     <body>
         <div class="navbar">
@@ -30,7 +30,9 @@
             {% endif %}
             <br /><br />
             <!-- Show drawing in right panel -->
-            <img src="{{ question.drawing_jpeg }}" width="100%"/>
+            <div>
+                <img src="{{ question.drawing_jpeg }}" id="zoom"/>
+            </div>
         </div>
     </body>
 </html>

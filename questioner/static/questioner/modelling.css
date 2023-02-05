@@ -17,6 +17,25 @@ th {
     border-collapse: collapse;
 }
 
+/* Main content */
+.main {
+    padding-top: 10px;
+}
+
+#zoom {
+    width: 100%;
+}
+
+#zoom:hover {
+    width: 200%;
+    left: calc(var(--mouse-x,0)*-100%);
+    top: calc(var(--mouse-y,0)*-100%);
+    margin-top: 100px;
+    position: absolute;
+    overflow: scroll;
+    cursor: zoom-in;
+}
+
 /* The navigation bar */
 .navbar {
     overflow: hidden;
@@ -78,9 +97,4 @@ th {
     padding: 14px 16px;
     text-decoration: none;
     width: 30%
-}
-
-/* Main content */
-.main {
-    margin-top: 60px; /* Add a top margin to avoid content overlay */
 }
