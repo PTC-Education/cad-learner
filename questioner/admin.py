@@ -1,4 +1,3 @@
-from typing import Any
 from django.contrib import admin
 from django.http import HttpRequest
 from django.db.models import QuerySet
@@ -14,7 +13,7 @@ class Reviewer_Admin(admin.ModelAdmin):
     readonly_fields = ['user_name', 'is_active']
     actions = ['change_status']
 
-    @admin.action(description="Activate/Inactivate reviewer")
+    @admin.action(description="Activate/Deactivate selected reviewers")
     def change_status(self, request: HttpRequest, queryset: QuerySet[Reviewer]) -> None:
         """ Change the reviewers' status from active to inactive, and vice versa 
         """
@@ -50,7 +49,7 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
     search_fields = ['question_name']
     actions = ['publish_question']
 
-    @admin.action(description="Publish/Hide questions")
+    @admin.action(description="Publish/Hide selected questions")
     def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
         for item in queryset: 
             item.publish() 
@@ -69,8 +68,8 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
     search_fields = ['question_name']
     actions = ['publish_question']
 
-    @admin.action(description="Publish/Hide questions")
-    def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
+    @admin.action(description="Publish/Hide selected questions")
+    def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_MPPS]) -> None: 
         for item in queryset: 
             item.publish() 
 
