@@ -19,7 +19,11 @@ th {
 
 /* Main content */
 .main {
-    padding-top: 10px;
+    position: fixed;
+}
+
+#feedback {
+    padding-top: 30px;
 }
 
 #zoom {
@@ -30,7 +34,6 @@ th {
     width: 200%;
     left: calc(var(--mouse-x,0)*-100%);
     top: calc(var(--mouse-y,0)*-100%);
-    margin-top: 100px;
     position: absolute;
     overflow: scroll;
     cursor: zoom-in;

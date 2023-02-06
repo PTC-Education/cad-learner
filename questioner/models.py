@@ -411,7 +411,6 @@ class Question_SPPS(Question):
         if not check_pass: 
             # Prepare error message 
             fail_msg = '''
-            <h3>You are almost there!</h3>
             <table>
                 <tr>
                     <th>Properties</th>

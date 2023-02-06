@@ -23,12 +23,14 @@
                 <a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer">View CAD drawing</a>
             </div>
         </div>
-        <div class="main">
+        <br>
+        <div id="main">
             <!-- Print out model comparison table if inaccurate -->
-            {% if model_comparison %}
-                {{ model_comparison |safe }}
-            {% endif %}
-            <br /><br />
+            <div id="feedback">
+                {% if model_comparison %}
+                    {{ model_comparison |safe }}
+                {% endif %}
+            </div>
             <!-- Show drawing in right panel -->
             <div>
                 <img src="{{ question.drawing_jpeg }}" id="zoom"/>
