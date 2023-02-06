@@ -232,19 +232,19 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
     
     response = curr_que.evaluate(curr_user)
 
-    if not response: 
+    if not response: # API error 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
-    elif type(response) is bool: 
+    elif type(response) is bool: # Submission is correct 
         # Initiate data collection from data miner 
         if curr_que.is_published: 
-            collect_final_data(curr_user)
+            collect_final_data(curr_user, is_failure=False)
         # Redirect to complete page 
         return HttpResponseRedirect(reverse(
             "questioner:complete", args=[
                 curr_que.question_type, curr_que.question_id, curr_user.os_user_id
             ]
         ))
-    else: 
+    else: # Submission failed 
         if curr_que.is_published and response[1]: # initiate failure attempt collection 
             collect_fail_data(curr_user)
         return render(
@@ -255,6 +255,36 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
                 "model_comparison": response[0] # failure message 
             }
         )
+
+
+def give_up(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
+    """ If a user gives up on the problem and wants to see the solution, 
+    the reference model should be presented to the user in some forms 
+    (defined differently in each of the question model).
+    Corresponding instructions should also be shown to teach the user 
+    how to use the reference model to find mismatched geometries, if needed. 
+    """
+    curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    if question_type not in Q_Type_Dict.keys(): 
+        return HttpResponseNotFound("Question type not found") 
+    curr_que = get_object_or_404(Q_Type_Dict[question_type], question_id=question_id)
+
+    # Reset user data model 
+    curr_user.is_modelling = False 
+    curr_user.save() 
+    # Initiate any give-up actions if available 
+    instructions, do_collect_data = curr_que.give_up(curr_user)
+    # Record model's final state at the point of give-up 
+    if do_collect_data: 
+        collect_final_data(curr_user, is_failure=True)
+
+    return render(
+        request, "questioner/give_up.html", 
+        context={
+            "user": curr_user, 
+            "instructions": instructions
+        }
+    )
 
 
 def complete(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 

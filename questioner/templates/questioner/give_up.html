@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'questioner/give_up.css' %}">
+    </head>
+    <body>
+        <h2>You were almost there!</h2>
+        {{ instructions|safe }}
+        <!-- Return to the home page -->
+        <form action="{% url 'questioner:index' user.os_user_id %}">
+            <input type="submit" value="Return to Home Page"/>
+        </form>
+        <br /><br />
+    </body>
+</html>

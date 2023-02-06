@@ -32,8 +32,8 @@ th {
 
 #zoom:hover {
     width: 200%;
-    left: calc(var(--mouse-x,0)*-100%);
-    top: calc(var(--mouse-y,0)*-100%);
+    left: calc(var(--mouse-x, 0) * -100%);
+    top: calc(var(--mouse-y, 0) * -100%);
     position: absolute;
     overflow: scroll;
     cursor: zoom-in;

@@ -41,7 +41,7 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
         '__str__', 'question_name', 'difficulty', 'is_published'
     ]
     readonly_fields = [
-        'question_id', 'question_type', 'allowed_etype', 'etype', 
+        'question_id', 'question_type', 'allowed_etype', 'etype', 'ref_mid', 
         'model_mass', 'model_volume', 'model_SA', 'model_inertia', 
         'is_published', 'completion_count', 'reviewer_completion_count'
     ]
@@ -60,8 +60,8 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
         '__str__', 'question_name', 'difficulty', 'is_published'
     ]
     readonly_fields = [
-        'question_id', 'question_type', 'allowed_etype', 'etype', 'mid', 
-        'model_mass', 'model_volume', 'model_SA', 
+        'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
+        'ref_mid', 'model_mass', 'model_volume', 'model_SA', 
         'is_published', 'completion_count', 'reviewer_completion_count'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
