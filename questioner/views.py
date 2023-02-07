@@ -257,7 +257,7 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
         )
 
 
-def give_up(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
+def solution(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
     """ If a user gives up on the problem and wants to see the solution, 
     the reference model should be presented to the user in some forms 
     (defined differently in each of the question model).
@@ -279,7 +279,7 @@ def give_up(request: HttpRequest, question_type: str, question_id: int, os_user_
         collect_final_data(curr_user, is_failure=True)
 
     return render(
-        request, "questioner/give_up.html", 
+        request, "questioner/solution.html", 
         context={
             "user": curr_user, 
             "instructions": instructions

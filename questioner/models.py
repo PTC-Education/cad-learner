@@ -1,6 +1,6 @@
 """
 Development Guide
-Last major structural update: Jan. 27, 2023
+Last major structural update: Feb. 7, 2023
 
 The Django model class "Question" is a base parent class of all question types. 
 Every question type should inheret the properties and methods of the Question class. 
@@ -17,11 +17,13 @@ When creating new question types:
             starting document for the user, e.g., import a starting part 
     (iii).  evaluate(self, AuthUser): when a user submits their model for evaluation, 
             specify the checks required to evaluate correctness 
-                - Also initiate data collection after evaluation 
-    (iv).   show_result(self, AuthUser): by default, distribution of the time spent 
+    (iv).   give_up(self, AuthUser): after at least one failed attempt, the user is 
+            given the option to give up, and some forms of solutions will be provided
+            to the user along with instructions, depending on the question type
+    (v).    show_result(self, AuthUser): by default, distribution of the time spent 
             to complete the question is shown in the Question class. Additional 
             distributions and/or statistics should be specified in this method 
-    (v).    save(self): initial information to be retrieved from Onshape when a 
+    (vi).   save(self): initial information to be retrieved from Onshape when a 
             question is first added by the admin
 5.  Add additional methods if required 
 6.  Add the new question type class to the Q_Type_Dict variables in all models.py 
@@ -283,6 +285,36 @@ class Question(models.Model):
         else: 
             return False 
 
+    def publish(self) -> None: 
+        """ Check if all necessary information is available to be published 
+        """
+        if self.is_published: 
+            self.is_published = False 
+        else: 
+            if self.publishable(): 
+                self.is_published = True 
+        self.save()
+        return None 
+
+    def initiate_actions(self, user: AuthUser) -> None: 
+        """ Any actions required to prepare the starting document for the user 
+        E.g., import a starting part 
+        """
+        return None 
+    
+    def evaluate(self, user: AuthUser) -> bool: 
+        """ When a user submits their model for evaluation, specify the checks 
+        required to evaluate correctness 
+        """
+        return False 
+
+    def give_up(self, user: AuthUser) -> str: 
+        """ After at least one failed attempt, the user is given the option to 
+        give up, and some forms of solutions will be provided to the user along 
+        with instructions, depending on the question type
+        """
+        return "<p>Your attempt is now terminated.</p>", False 
+
     def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ By default, the time spent to completion of a question of all users 
         is visualized through a distribution plot, and the relative position of 
@@ -486,7 +518,7 @@ class Question_SPPS(Question):
         else: 
             msg += "<p>The reference part is imported into your working Part Studio. You can (1) change the color of the part, (2) follow instructions below to line up the two parts, and (3) visualize the difference.</p>"
         msg += '''
-        <img src="{% static 'questioner/images/derive_instruction.gif' %}" alt="derive_instruction" />
+        <img src="{% static 'questioner/images/ps_sol_instruct.gif' %}" alt="derive_instruction" />
         '''
         # Determine if data miner should collect data 
         if user.end_mid: # if at least one attempt evaluated before 
