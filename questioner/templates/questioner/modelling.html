@@ -7,23 +7,21 @@
         <script src="{% static 'questioner/modelling.js' %}" type="text/javascript"></script>
     </head>
     <body>
-        <div class="navbar">
-            <!-- Go back to index page -->
-            <a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a>
-            <!-- Submit/Re-submit for evaluation -->
-            <form class="navbar-centered" action="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}">
-                {% if model_comparison %}
-                    <input type="submit" value="Re-submit"/>
+        <div id="navbar">
+            <ul class="inline">
+                <!-- Go back to index page -->
+                <li><a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a></li>
+                <!-- Submit/Re-submit for evaluation -->
+                {% if user.end_mid %} <!-- Failed at least once -->
+                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}">Re-submit</a></li>
+                    <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}">Give Up & See Solution</a></li>
                 {% else %}
-                    <input type="submit" value="Submit"/>
+                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}">Submit</a></li>
                 {% endif %}
-            </form>
-            <!-- View CAD drawing in new tab -->
-            <div class="navbar-right">
-                <a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer">View CAD drawing</a>
-            </div>
+                <!-- View CAD drawing in new tab -->
+                <li><a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer">Open Drawing in New Tab</a></li>
+            </ul>
         </div>
-        <br>
         <div id="main">
             <!-- Print out model comparison table if inaccurate -->
             <div id="feedback">
@@ -33,7 +31,7 @@
             </div>
             <!-- Show drawing in right panel -->
             <div>
-                <img src="{{ question.drawing_jpeg }}" />
+                <img src="{{ question.drawing_jpeg }}" width="100%"/>
             </div>
         </div>
     </body>

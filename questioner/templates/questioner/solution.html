@@ -6,7 +6,7 @@
     </head>
     <body>
         <h2>You were almost there!</h2>
-        {{ instructions|safe }}
+        {{ instructions |safe }}
         <!-- Return to the home page -->
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>
