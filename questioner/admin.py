@@ -47,12 +47,21 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name']
-    actions = ['publish_question']
+    actions = ['publish_question', 'force_update']
 
     @admin.action(description="Publish/Hide selected questions")
     def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
         for item in queryset: 
             item.publish() 
+
+    @admin.action(description="Force update selected questions")
+    def force_update(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
+        for item in queryset: 
+            item.thumbnail = None 
+            item.drawing_jpeg = None 
+            item.ref_mid = None 
+            item.model_mass = None
+            item.save() 
 
 
 class Questions_MPPS_Admin(admin.ModelAdmin): 
@@ -66,12 +75,22 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name']
-    actions = ['publish_question']
+    actions = ['publish_question', 'force_update']
 
     @admin.action(description="Publish/Hide selected questions")
     def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_MPPS]) -> None: 
         for item in queryset: 
             item.publish() 
+    
+    @admin.action(description="Force update selected questions")
+    def force_update(self, request: HttpRequest, queryset: QuerySet[Question_MPPS]) -> None: 
+        for item in queryset: 
+            item.thumbnail = None 
+            item.drawing_jpeg = None 
+            item.init_mid = None 
+            item.ref_mid = None 
+            item.model_mass = []
+            item.save() 
 
 
 admin.site.register(Reviewer, Reviewer_Admin)

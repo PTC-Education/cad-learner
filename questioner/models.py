@@ -514,7 +514,7 @@ class Question_SPPS(Question):
         msg = ""
         if not response: # insert derive fail 
             msg += "<p>To view the solution, please visit the source document to view the reference part.</p>"
-            msg += "<p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference part to your own and visualize the difference.</p>"
+            msg += "<p>Optional: you can also import the reference part into your working Part Studio using the derived feature. Following instructions below, you can line up the reference part to your own and visualize the difference.</p>"
         else: 
             msg += "<p>The reference part is imported into your working Part Studio. You can follow instructions below to line up the two parts and visualize the difference.</p>"
         # Determine if data miner should collect data 
@@ -752,6 +752,29 @@ class Question_MPPS(Question):
                 )]
             user.save() 
             return True 
+
+    def give_up(self, user: AuthUser) -> str: 
+        """ After at least one failed attempt, the user is given the option to 
+        give up, and some forms of solutions will be provided to the user along 
+        with instructions, depending on the question type
+        """
+        response = insert_ps_to_ps(
+            user, self.did, self.vid, self.eid, self.ref_mid
+        )
+        # Prepare instructions of using the solution 
+        msg = ""
+        if not response: # insert derive fail 
+            msg += "<p>To view the solution, please visit the source document to view the reference part.</p>"
+            msg += "<p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference parts to your own and visualize the difference.</p>"
+        else: 
+            msg += "<p>The reference parts are imported into your working Part Studio. You can follow instructions below to line up the reference parts to your own and visualize the difference.</p>"
+        # Determine if data miner should collect data 
+        if user.end_mid: # if at least one attempt evaluated before 
+            user.end_mid = get_microversion(user)
+            user.save() 
+            return msg, True 
+        else: 
+            return msg, False 
 
     def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ Other than the default time spent comparison, also plot the 
