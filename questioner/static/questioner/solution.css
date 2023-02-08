@@ -16,3 +16,9 @@ input[type=submit] {
 input[type=submit]:hover {
     background-color: #bbb;
 }
+
+/* Style the image, if exists */
+img {
+    width: 95%;
+    align-items: center;
+}

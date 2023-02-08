@@ -282,6 +282,7 @@ def solution(request: HttpRequest, question_type: str, question_id: int, os_user
         request, "questioner/solution.html", 
         context={
             "user": curr_user, 
+            "question": curr_que, 
             "instructions": instructions
         }
     )

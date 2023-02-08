@@ -12,7 +12,7 @@
                 <!-- Go back to index page -->
                 <li><a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a></li>
                 <!-- Submit/Re-submit for evaluation -->
-                {% if user.end_mid %} <!-- Failed at least once -->
+                {% if model_comparison or user.end_mid %} <!-- Failed at least once -->
                     <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}">Re-submit</a></li>
                     <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}">Give Up & See Solution</a></li>
                 {% else %}
@@ -26,7 +26,8 @@
             <!-- Print out model comparison table if inaccurate -->
             <div id="feedback">
                 {% if model_comparison %}
-                    {{ model_comparison |safe }}
+                    {{ model_comparison|safe }}
+                    <br /><br />
                 {% endif %}
             </div>
             <!-- Show drawing in right panel -->

@@ -516,10 +516,7 @@ class Question_SPPS(Question):
             msg += "<p>To view the solution, please visit the source document to view the reference part.</p>"
             msg += "<p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference part to your own and visualize the difference.</p>"
         else: 
-            msg += "<p>The reference part is imported into your working Part Studio. You can (1) change the color of the part, (2) follow instructions below to line up the two parts, and (3) visualize the difference.</p>"
-        msg += '''
-        <img src="{% static 'questioner/images/ps_sol_instruct.gif' %}" alt="derive_instruction" />
-        '''
+            msg += "<p>The reference part is imported into your working Part Studio. You can follow instructions below to line up the two parts and visualize the difference.</p>"
         # Determine if data miner should collect data 
         if user.end_mid: # if at least one attempt evaluated before 
             user.end_mid = get_microversion(user)

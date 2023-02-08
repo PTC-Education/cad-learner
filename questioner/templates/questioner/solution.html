@@ -6,7 +6,11 @@
     </head>
     <body>
         <h2>You were almost there!</h2>
-        {{ instructions |safe }}
+        {{ instructions|safe }}
+        {% if question.allowed_etype == "partstudios" %}
+            <img src="{% static 'questioner/images/ps_sol_instruct.gif' %}" alt="derive_instruction" />
+        {% endif %}
+        <br /><br />
         <!-- Return to the home page -->
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>
