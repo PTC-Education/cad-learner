@@ -45,8 +45,7 @@ body {
 }
 
 .btn-group input.radio ~ label {
-    width: 24.5%;
-    border: 1px solid #d1d3d4;
+    width: 25%;
     border-radius: 5px;
     background-color: #eee;
 	float: left;

@@ -1,6 +1,6 @@
 """
 Development Guide
-Last major structural update: Jan. 27, 2023
+Last major structural update: Feb. 7, 2023
 
 The Django model class "Question" is a base parent class of all question types. 
 Every question type should inheret the properties and methods of the Question class. 
@@ -17,11 +17,13 @@ When creating new question types:
             starting document for the user, e.g., import a starting part 
     (iii).  evaluate(self, AuthUser): when a user submits their model for evaluation, 
             specify the checks required to evaluate correctness 
-                - Also initiate data collection after evaluation 
-    (iv).   show_result(self, AuthUser): by default, distribution of the time spent 
+    (iv).   give_up(self, AuthUser): after at least one failed attempt, the user is 
+            given the option to give up, and some forms of solutions will be provided
+            to the user along with instructions, depending on the question type
+    (v).    show_result(self, AuthUser): by default, distribution of the time spent 
             to complete the question is shown in the Question class. Additional 
             distributions and/or statistics should be specified in this method 
-    (v).    save(self): initial information to be retrieved from Onshape when a 
+    (vi).   save(self): initial information to be retrieved from Onshape when a 
             question is first added by the admin
 5.  Add additional methods if required 
 6.  Add the new question type class to the Q_Type_Dict variables in all models.py 
@@ -35,7 +37,7 @@ import os
 import requests
 import base64
 from datetime import datetime, timedelta
-from typing import Union, Tuple, Dict, Any
+from typing import Optional, Union, Tuple, Dict, Any
 
 import numpy as np 
 import numpy.typing as npt 
@@ -283,6 +285,36 @@ class Question(models.Model):
         else: 
             return False 
 
+    def publish(self) -> None: 
+        """ Check if all necessary information is available to be published 
+        """
+        if self.is_published: 
+            self.is_published = False 
+        else: 
+            if self.publishable(): 
+                self.is_published = True 
+        self.save()
+        return None 
+
+    def initiate_actions(self, user: AuthUser) -> None: 
+        """ Any actions required to prepare the starting document for the user 
+        E.g., import a starting part 
+        """
+        return None 
+    
+    def evaluate(self, user: AuthUser) -> bool: 
+        """ When a user submits their model for evaluation, specify the checks 
+        required to evaluate correctness 
+        """
+        return False 
+
+    def give_up(self, user: AuthUser) -> str: 
+        """ After at least one failed attempt, the user is given the option to 
+        give up, and some forms of solutions will be provided to the user along 
+        with instructions, depending on the question type
+        """
+        return "<p>Your attempt is now terminated.</p>", False 
+
     def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ By default, the time spent to completion of a question of all users 
         is visualized through a distribution plot, and the relative position of 
@@ -323,6 +355,10 @@ class Question_SPPS(Question):
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
         default=list, help_text="List of feature counts required by users in history"
+    )
+    ref_mid = models.CharField(
+        max_length=40, default=None, null=True, 
+        help_text="Last microversion of the reference element's version"
     )
 
     # Properties for evaluation 
@@ -464,6 +500,31 @@ class Question_SPPS(Question):
                 )]
             user.save() 
             return True 
+
+    def give_up(self, user:AuthUser) -> str: 
+        """ If a user gives up on the problem and wants to see the solution, 
+        a derived version of the reference part is first inserted into the 
+        user's model, and a GIF instruction will be shown to teach the user 
+        how to transform the imported part to see mismatch of their model. 
+        """
+        response = insert_ps_to_ps(
+            user, self.did, self.vid, self.eid, self.ref_mid
+        )
+        # Prepare instructions of using the solution 
+        msg = ""
+        if not response: # insert derive fail 
+            msg += "<p>To view the solution, please visit the source document to view the reference part.</p>"
+            msg += "<p>Optional: you can also import the reference part into your working Part Studio using the derived feature. Following instructions below, you can line up the reference part to your own and visualize the difference.</p>"
+        else: 
+            msg += "<p>The reference part is imported into your working Part Studio. You can follow instructions below to line up the two parts and visualize the difference.</p>"
+        # Determine if data miner should collect data 
+        if user.end_mid: # if at least one attempt evaluated before 
+            user.end_mid = get_microversion(user)
+            user.save() 
+            return msg, True 
+        else: 
+            return msg, False 
+
     
     def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ Other than the default time spent comparison, also plot the 
@@ -490,6 +551,12 @@ class Question_SPPS(Question):
         self.question_type = QuestionType.SINGLE_PART_PS
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
+        # Get microversion IDs 
+        if not self.ref_mid: 
+            ele_info = get_elements(self, auth_token=get_admin_token(), elementId=self.eid)
+            if ele_info: 
+                self.ref_mid = ele_info[0]['microversionId']
+        # Get reference geometries 
         if not self.model_mass: 
             mass_prop = get_mass_properties(
                 self.did, "v", self.vid, self.eid, self.etype, 
@@ -511,9 +578,13 @@ class Question_MPPS(Question):
         max_length=40, default=None, null=True, 
         help_text="(Optional) Starting part studio that need to be imported to user document with derived features. Leave blank if none is required."
     )
-    mid = models.CharField(
+    init_mid = models.CharField(
         max_length=40, default=None, null=True, 
         help_text="Last microversion of the starting element's version"
+    )
+    ref_mid = models.CharField(
+        max_length=40, default=None, null=True, 
+        help_text="Last microversion of the reference element's version"
     )
 
     # Additional analytics to be collected and presented 
@@ -549,53 +620,16 @@ class Question_MPPS(Question):
         """
         # Insert the all starting parts from the starting document to user's working 
         # document as one derived part 
-        response = requests.post(
-            os.path.join(
-                user.os_domain, 
-                "api/partstudios/d/{}/w/{}/e/{}/features".format(
-                    user.did, user.wid, user.eid
-                )
-            ), 
-            headers={
-                "Content-Type": "application/json", 
-                "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-                "Authorization" : "Bearer " + user.access_token
-            }, 
-            json={
-                 "feature": {
-                    "btType": "BTMFeature-134",
-                    "name": "Derived Starting Parts",
-                    "parameters": [
-                        {
-                            "btType": "BTMParameterQueryList-148",
-                            "queries": [
-                                {
-                                    "btType": "BTMIndividualQuery-138",
-                                    "queryStatement": None,
-                                    "queryString": "query=qEverything(EntityType.BODY);"
-                                }
-                            ], 
-                            "parameterId": "parts"
-                        },
-                        {
-                            "btType": "BTMParameterDerived-864",
-                            "parameterId": "buildFunction",
-                            "namespace": "d{}::v{}::e{}::m{}".format(
-                                self.did, self.vid, self.starting_eid, self.mid
-                            ),
-                            "imports": []
-                        }
-                    ],
-                    "featureType": "importDerived"
-                }
-            }
+        response = insert_ps_to_ps(
+            user, self.did, self.vid, self.starting_eid, self.init_mid
         )
-        if not response.ok: 
+        
+        if not response: 
             return False 
         else: 
             # Store the import derived feature ID for evaluation 
             user.add_field = {
-                "MPPS_Derived_ID": response.json()['feature']['featureId']
+                "MPPS_Derived_ID": response
             }
             user.save()
             return True
@@ -719,6 +753,29 @@ class Question_MPPS(Question):
             user.save() 
             return True 
 
+    def give_up(self, user: AuthUser) -> str: 
+        """ After at least one failed attempt, the user is given the option to 
+        give up, and some forms of solutions will be provided to the user along 
+        with instructions, depending on the question type
+        """
+        response = insert_ps_to_ps(
+            user, self.did, self.vid, self.eid, self.ref_mid
+        )
+        # Prepare instructions of using the solution 
+        msg = ""
+        if not response: # insert derive fail 
+            msg += "<p>To view the solution, please visit the source document to view the reference part.</p>"
+            msg += "<p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference parts to your own and visualize the difference.</p>"
+        else: 
+            msg += "<p>The reference parts are imported into your working Part Studio. You can follow instructions below to line up the reference parts to your own and visualize the difference.</p>"
+        # Determine if data miner should collect data 
+        if user.end_mid: # if at least one attempt evaluated before 
+            user.end_mid = get_microversion(user)
+            user.save() 
+            return msg, True 
+        else: 
+            return msg, False 
+
     def show_result(self, user: AuthUser, show_best=False) -> str: 
         """ Other than the default time spent comparison, also plot the 
         distribution of features used to complete the question. 
@@ -744,10 +801,15 @@ class Question_MPPS(Question):
         self.question_type = QuestionType.MULTI_PART_PS
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
-        if self.starting_eid and not self.mid: 
-            ele_info = get_elements(self, auth_token=get_admin_token(), elementId=self.starting_eid)
-            if ele_info: 
-                self.mid = ele_info[0]['microversionId']
+        # Get microversion IDs 
+        if not self.ref_mid or (self.starting_eid and not self.init_mid): 
+            ele_info = get_elements(self, auth_token=get_admin_token())
+            for item in ele_info: 
+                if item['id'] == self.eid: 
+                    self.ref_mid = item['microversionId']
+                elif self.starting_eid and item['id'] == self.starting_eid: 
+                    self.init_mid = item['microversionId']
+        # Get reference geometries 
         if not self.model_mass: 
             mass_prop = get_mass_properties(
                 self.did, "v", self.vid, self.eid, self.etype, 
@@ -922,7 +984,65 @@ def get_elements(question: _Q_TYPES, auth_token: str, elementId=None) -> Any:
     if response.ok: 
         return response.json() 
     else: 
-        return None 
+        return [] 
+
+
+def insert_ps_to_ps(
+    user: AuthUser, source_did: str, source_vid: str, source_eid: str, source_mid: str
+) -> Optional[str]: 
+    """ Insert the entire source part studio into the user's (target) 
+    part studio with one PS derived feature. 
+    
+    Returns: 
+        The featureId of the successfully created derived feature; 
+        None otherwise. 
+    """
+    response = requests.post(
+        os.path.join(
+            user.os_domain, 
+            "api/partstudios/d/{}/w/{}/e/{}/features".format(
+                user.did, user.wid, user.eid
+            )
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + user.access_token
+        }, 
+        json={
+                "feature": {
+                "btType": "BTMFeature-134",
+                "name": "Derived Starting Parts",
+                "parameters": [
+                    {
+                        "btType": "BTMParameterQueryList-148",
+                        "queries": [
+                            {
+                                "btType": "BTMIndividualQuery-138",
+                                "queryStatement": None,
+                                "queryString": "query=qEverything(EntityType.BODY);"
+                            }
+                        ], 
+                        "parameterId": "parts"
+                    },
+                    {
+                        "btType": "BTMParameterDerived-864",
+                        "parameterId": "buildFunction",
+                        "namespace": "d{}::v{}::e{}::m{}".format(
+                            source_did, source_vid, source_eid, source_mid
+                        ),
+                        "imports": []
+                    }
+                ],
+                "featureType": "importDerived"
+            }
+        }
+    )
+    if not response.ok: 
+        return None
+    else: 
+        # Return the import derived feature ID 
+        return response.json()['feature']['featureId']
 
 
 #################### Other helper functions ####################

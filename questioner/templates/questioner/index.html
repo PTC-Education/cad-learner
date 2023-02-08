@@ -53,6 +53,7 @@
         <!-- Allow filtering of unpublished questions for reviewers-->
         <input type="hidden" id="is_reviewer" value="{{ user.is_reviewer }}" />
         {% if user.is_reviewer %}
+            <br /><br />
             <div>
                 <input type="radio" name="rev" id="rev_all" onclick="search_filter()" checked/>
                 <label for="rev_all">All Questions</label>

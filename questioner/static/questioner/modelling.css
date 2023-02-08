@@ -18,86 +18,42 @@ th {
 }
 
 /* Main content */
-.main {
-    position: fixed;
-}
-
 #feedback {
     padding-top: 30px;
 }
 
-#zoom {
-    width: 100%;
-}
-
-#zoom:hover {
-    width: 200%;
-    left: calc(var(--mouse-x,0)*-100%);
-    top: calc(var(--mouse-y,0)*-100%);
-    position: absolute;
-    overflow: scroll;
-    cursor: zoom-in;
-}
-
 /* The navigation bar */
-.navbar {
+#navbar {
     overflow: hidden;
     background-color: #333;
-    position: fixed; /* Set the navbar to fixed position */
-    top: 0; /* Position the navbar at the top of the page */
-    width: 100%; /* Full width */
-  }
+}
 
-/* Style the submit button for evaluation */ 
-.navbar input[type=submit] {
-    float: left;
+#navbar ul {
+    list-style-type: none;
+    table-layout: fixed;
+    width: 100%; 
+    margin: 0;
+    padding: 0;
+    display: table;
+    text-align: center;
+}
+
+#navbar li {
+    display: table-cell;
+    vertical-align: middle;
+}
+
+#navbar li a {
+    position: relative;
     display: block;
     background-color: #333;
     color: #f2f2f2;
-    text-align: center;
-    padding: 14px 16px;
+    padding: 20px 20px;
     text-decoration: none;
-    width: 30%;
 }
 
-.navbar input[type=submit]:hover {
+#navbar li a:hover {
     background: #ddd;
     color: black;
     cursor: pointer;
-}
-
-/* Change background on mouse-over */
-.navbar a:hover {
-    background: #ddd;
-    color: black;
-}
-
-.navbar-centered input{
-    float: none;
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
-
-  
-/* Links inside the navbar */
-.navbar a {
-    float: left;
-    display: block;
-    color: #f2f2f2;
-    text-align: center;
-    padding: 14px 16px;
-    text-decoration: none;
-    width: 30%
-}
-
-.navbar-right a {
-    float: right;
-    display: block;
-    color: #f2f2f2;
-    text-align: center;
-    padding: 14px 16px;
-    text-decoration: none;
-    width: 30%
-}
+} 

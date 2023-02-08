@@ -62,6 +62,7 @@ class HistoryData(models.Model):
     # Attempt information 
     num_attempt = models.IntegerField(default=0) # the n-th attempt 
     time_spent = models.FloatField(default=0.0)
+    is_final_failure = models.BooleanField(default=False) # did final sub fail?
     # General design data collected 
     # Each question type may collect additional design data 
     microversions_discrip = models.JSONField(default=list, null=True)
@@ -82,7 +83,7 @@ class HistoryData_PS(HistoryData):
     failed_shaded_views = models.JSONField(default=dict, null=True)
     failed_mesh = models.TextField(default=None, null=True, blank=True)
 
-    # Final correct submission 
+    # Final submission 
     final_feature_list = models.JSONField(default=dict, null=True)
     final_shaded_views = models.JSONField(default=dict, null=True)
     # List[Tuple[rollbackBarIndex, mesh]]
