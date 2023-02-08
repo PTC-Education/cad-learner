@@ -45,15 +45,24 @@ th {
 
 #navbar li a {
     position: relative;
-    display: block;
+    display: inline-block;
     background-color: #333;
     color: #f2f2f2;
     padding: 20px 20px;
     text-decoration: none;
+    margin: auto;
 }
 
-#navbar li a:hover {
+#navbar li:hover a {
     background: #ddd;
+    height: 100%;
+    color: black;
+    cursor: pointer;
+} 
+
+#navbar li:hover {
+    background: #ddd;
+    height: 100%;
     color: black;
     cursor: pointer;
 } 

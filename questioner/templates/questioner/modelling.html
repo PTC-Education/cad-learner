@@ -10,16 +10,16 @@
         <div id="navbar">
             <ul class="inline">
                 <!-- Go back to index page -->
-                <li><a href="{% url 'questioner:index' user.os_user_id %}" onclick="return confirm_alert()">Back to Home</a></li>
+                <li><a href="{% url 'questioner:index' user.os_user_id %}" onclick="return home_confirm_alert()" title="Return to list of challenges - you will need to restart this challenge">Back to Home</a></li>
                 <!-- Submit/Re-submit for evaluation -->
                 {% if model_comparison or user.end_mid %} <!-- Failed at least once -->
-                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}">Re-submit</a></li>
-                    <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}">Give Up & See Solution</a></li>
+                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference again">Re-submit</a></li>
+                    <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}" onclick="return give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
                 {% else %}
-                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}">Submit</a></li>
+                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference">Submit</a></li>
                 {% endif %}
                 <!-- View CAD drawing in new tab -->
-                <li><a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer">Open Drawing in New Tab</a></li>
+                <li><a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer" title="Open the document with the reference moodel and drawings in a new tab">Open Reference</a></li>
             </ul>
         </div>
         <div id="main">
