@@ -68,22 +68,26 @@ def collect_final_data(user: AuthUser, is_failure: bool) -> bool:
             question_type=user.curr_question_type 
         )
 
-    if not is_failure: 
-        attempt_data = user.completed_history[
-            user.curr_question_type + "_" + str(user.curr_question_id)
-        ][-1] # Tuple[completion_datetime, time_taken, ...]
-    else: 
-        attempt_data = user.failure_history[
-            user.curr_question_type + "_" + str(user.curr_question_id)
-        ][-1] # Tuple[completion_datetime, time_taken, ...]
+    q_name = user.curr_question_type + "_" + str(user.curr_question_id)
 
+    # history_data: Tuple[completion_datetime, time_taken, ...]
+    if not is_failure: 
+        attempt_data = user.completed_history[q_name][-1] 
+    else: 
+        attempt_data = user.failure_history[q_name][-1] 
     data_entry.is_final_failure = is_failure
     data_entry.time_of_completion = datetime.fromisoformat(attempt_data[0])
-    data_entry.num_attempt = len(user.completed_history[
-        user.curr_question_type + "_" + str(user.curr_question_id)
-    ]) + len(user.failure_history[
-        user.curr_question_type + "_" + str(user.curr_question_id)
-    ])
+
+    if q_name in user.completed_history: 
+        complete_len = len(user.completed_history[q_name])
+    else: 
+        complete_len = 0 
+    if q_name in user.failure_history: 
+        fail_len = len(user.failure_history[q_name])
+    else: 
+        fail_len = 0 
+    data_entry.num_attempt = complete_len + fail_len
+
     data_entry.save() 
     
     # Initiate final submission data record 
