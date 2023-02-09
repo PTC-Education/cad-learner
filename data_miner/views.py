@@ -68,13 +68,20 @@ def collect_final_data(user: AuthUser, is_failure: bool) -> bool:
             question_type=user.curr_question_type 
         )
 
-    completion_data = user.completed_history[
-        user.curr_question_type + "_" + str(user.curr_question_id)
-    ][-1] # Tuple[completion_datetime, time_taken, ...]
-    
+    if not is_failure: 
+        attempt_data = user.completed_history[
+            user.curr_question_type + "_" + str(user.curr_question_id)
+        ][-1] # Tuple[completion_datetime, time_taken, ...]
+    else: 
+        attempt_data = user.failure_history[
+            user.curr_question_type + "_" + str(user.curr_question_id)
+        ][-1] # Tuple[completion_datetime, time_taken, ...]
+
     data_entry.is_final_failure = is_failure
-    data_entry.time_of_completion = datetime.fromisoformat(completion_data[0])
+    data_entry.time_of_completion = datetime.fromisoformat(attempt_data[0])
     data_entry.num_attempt = len(user.completed_history[
+        user.curr_question_type + "_" + str(user.curr_question_id)
+    ]) + len(user.failure_history[
         user.curr_question_type + "_" + str(user.curr_question_id)
     ])
     data_entry.save() 

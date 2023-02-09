@@ -93,8 +93,9 @@ class AuthUser(models.Model):
     )
     
     completed_history = models.JSONField(default=dict)
+    failure_history = models.JSONField(default=dict)
     """
-    completed_history = Dict[
+    history_data = Dict[
         str(question): List[Tuple[completion_datetime, time_taken, ...]]
     ]
 
@@ -305,6 +306,10 @@ class Question(models.Model):
     def evaluate(self, user: AuthUser) -> bool: 
         """ When a user submits their model for evaluation, specify the checks 
         required to evaluate correctness 
+        - If evaluation passed, True is returned. 
+        - If evaluation cannot proceed due to API errors, False is returned. 
+        - If evaluation found mismatch, a table showing the difference is returned to 
+          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
         """
         return False 
 
@@ -312,6 +317,7 @@ class Question(models.Model):
         """ After at least one failed attempt, the user is given the option to 
         give up, and some forms of solutions will be provided to the user along 
         with instructions, depending on the question type
+        Returns: Tuple[message, ?collect_data]
         """
         return "<p>Your attempt is now terminated.</p>", False 
 
@@ -506,9 +512,12 @@ class Question_SPPS(Question):
         a derived version of the reference part is first inserted into the 
         user's model, and a GIF instruction will be shown to teach the user 
         how to transform the imported part to see mismatch of their model. 
+        Returns: Tuple[message, ?collect_data]
         """
+        temp_mid = get_microversion(user) 
         response = insert_ps_to_ps(
-            user, self.did, self.vid, self.eid, self.ref_mid
+            user, self.did, self.vid, self.eid, self.ref_mid, 
+            "Derived Reference Part"
         )
         # Prepare instructions of using the solution 
         msg = ""
@@ -517,9 +526,21 @@ class Question_SPPS(Question):
             msg += "<p>Optional: you can also import the reference part into your working Part Studio using the derived feature. Following instructions below, you can line up the reference part to your own and visualize the difference.</p>"
         else: 
             msg += "<p>The reference part is imported into your working Part Studio. You can follow instructions below to line up the two parts and visualize the difference.</p>"
+        
         # Determine if data miner should collect data 
-        if user.end_mid: # if at least one attempt evaluated before 
-            user.end_mid = get_microversion(user)
+        if user.end_mid: # if at least one meaningful attempt evaluated before 
+            time_spent = (timezone.now() - user.last_start).total_seconds()
+            if str(self) in user.failure_history: 
+                user.failure_history[str(self)].append((
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                ))
+            else: 
+                user.failure_history[str(self)] = [(
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                )]
+            user.end_mid = temp_mid
             user.save() 
             return msg, True 
         else: 
@@ -621,7 +642,8 @@ class Question_MPPS(Question):
         # Insert the all starting parts from the starting document to user's working 
         # document as one derived part 
         response = insert_ps_to_ps(
-            user, self.did, self.vid, self.starting_eid, self.init_mid
+            user, self.did, self.vid, self.starting_eid, self.init_mid, 
+            "Derived Starting Parts"
         )
         
         if not response: 
@@ -757,9 +779,12 @@ class Question_MPPS(Question):
         """ After at least one failed attempt, the user is given the option to 
         give up, and some forms of solutions will be provided to the user along 
         with instructions, depending on the question type
+        Returns: Tuple[message, ?collect_data]
         """
+        temp_mid = get_microversion(user)
         response = insert_ps_to_ps(
-            user, self.did, self.vid, self.eid, self.ref_mid
+            user, self.did, self.vid, self.eid, self.ref_mid, 
+            "Derived Reference Parts"
         )
         # Prepare instructions of using the solution 
         msg = ""
@@ -768,9 +793,21 @@ class Question_MPPS(Question):
             msg += "<p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference parts to your own and visualize the difference.</p>"
         else: 
             msg += "<p>The reference parts are imported into your working Part Studio. You can follow instructions below to line up the reference parts to your own and visualize the difference.</p>"
+        
         # Determine if data miner should collect data 
-        if user.end_mid: # if at least one attempt evaluated before 
-            user.end_mid = get_microversion(user)
+        if user.end_mid: # if at least one meaningful attempt evaluated before 
+            time_spent = (timezone.now() - user.last_start).total_seconds()
+            if str(self) in user.failure_history: 
+                user.failure_history[str(self)].append((
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                ))
+            else: 
+                user.failure_history[str(self)] = [(
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                )]
+            user.end_mid = temp_mid
             user.save() 
             return msg, True 
         else: 
@@ -988,7 +1025,8 @@ def get_elements(question: _Q_TYPES, auth_token: str, elementId=None) -> Any:
 
 
 def insert_ps_to_ps(
-    user: AuthUser, source_did: str, source_vid: str, source_eid: str, source_mid: str
+    user: AuthUser, source_did: str, source_vid: str, source_eid: str, source_mid: str, 
+    derive_feature_name: str
 ) -> Optional[str]: 
     """ Insert the entire source part studio into the user's (target) 
     part studio with one PS derived feature. 
@@ -1012,7 +1050,7 @@ def insert_ps_to_ps(
         json={
                 "feature": {
                 "btType": "BTMFeature-134",
-                "name": "Derived Starting Parts",
+                "name": derive_feature_name,
                 "parameters": [
                     {
                         "btType": "BTMParameterQueryList-148",
