@@ -1,0 +1,28 @@
+body {
+    color: #333;
+    font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
+    padding-left: 5%;
+    padding-right: 5%;
+}
+
+#logo {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    padding: 20px;
+    width: 80%;
+}
+
+/* Style the submit button to return home */ 
+input[type=submit] {
+    padding: 10px 10px;
+    cursor: pointer;
+    background-color: #ddd;
+    border: 0 none;
+    border-radius: 5px;
+    margin-bottom: 1em;
+}
+
+input[type=submit]:hover {
+    background-color: #bbb;
+}

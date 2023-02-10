@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'questioner/home.css' %}">
+    </head>
+    <body>
+        {% if user|slugify != "anonymoususer" %}
+            <!-- Return to the home page -->
+            <br>
+            <form action="{% url 'questioner:index' user.os_user_id %}">
+                <input type="submit" value="Return to Home Page"/>
+            </form>
+        {% else %}
+            <!-- Load app logo at the top of the page -->
+            <div id="logo">
+                <img id="logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo"/>
+            </div>
+        {% endif %}
+        <!-- Welcome message and FAQ's -->
+        <div>
+            <h1>Welcome</h1>
+            <p>We created the CAD Challenges app to allow Onshape users to practice their parametric modeling skills. Because lots of people will be creating the same models, we have the opportunity to do some interesting research on the various ways that the same geometry can be created.</p>
+        </div>
+        <!-- Document data that is collected -->
+        <div>
+            <h1 id="documentation-on-data-collection">Documentation on Data Collection</h1>
+            <p>While the front-end of the app supports CAD modelling challenge questions with automatic geometric evaluation of correctness, the back-end of the app also collects a selection of design data from the users to support research studies. </p>
+            <ul>
+                <li><a href="#data-types">Data Types</a>: types of data that the app is currently collecting <ul>
+                <li><a href="#microversion-descriptions">Microversion descriptions</a> </li>
+                <li><a href="#feature-list-definition">Feature list definition</a> </li>
+                <li><a href="#shaded-views-of-the-workspace">Shaded views of the workspace</a></li>
+                <li><a href="#mesh-representation-of-the-model">Mesh representation of the model</a> </li>
+            </ul>
+            </li>
+            <li><a href="#data-collection">Data Collection</a>: the occurrences when data are collected <ul>
+            <li><a href="#at-first-failure-attempt">At first failure attempt</a></li>
+            <li><a href="#at-successful-completion">At successful completion</a></li>
+            <li><a href="#at-give-up-confirmation">At give-up confirmation</a></li>
+            </ul>
+            </li>
+            </ul>
+            <h2 id="data-types">Data Types</h2>
+            <p>Each of the following sections details one type of design data that the app is currently collecting. However, at different occurrences, different types of data are being collected (see the <a href="#data-collection">data collection section</a> for more details). </p>
+            <h3 id="microversion-descriptions">Microversion descriptions</h3>
+            <p>For every change made in an Onshape document, an immutable <em>microversion</em> is automatically created and logged by Onshape in the document’s history. When the data is recorded in the app, the <code>username</code> of every microversion entry (as obtained from Onshape&#39;s API) is automatically removed. This data type is retrieved using the <code>Document/getDocumentHistory</code> API endpoint (<a href="https://cad.onshape.com/glassworks/explorer/#/Document/getDocumentHistory">ref</a>). </p>
+            <p>The microversion history is stored as a list of JSON objects in reversed chronological order. Every element of the list stores the description of one microversion. An example of a microversion description is shown below: </p>
+            <pre><code class="lang-json">
+            {
+                <span class="hljs-attr">"date"</span>: <span class="hljs-string">"2022-12-15T16:11:34.613+00:00"</span>,
+                <span class="hljs-attr">"canBeRestored"</span>: <span class="hljs-literal">true</span>,
+                <span class="hljs-attr">"description"</span>: <span class="hljs-string">"Part Studio 1 :: Insert feature : Sketch 1"</span>,
+                <span class="hljs-attr">"userId"</span>: <span class="hljs-string">"888888888888888888888888"</span>,
+                <span class="hljs-attr">"microversionId"</span>: <span class="hljs-string">"b54e0c116a5957a5e8f16a8f"</span>,
+                <span class="hljs-attr">"nextMicroversionId"</span>: <span class="hljs-string">"97c088c56cc53473e43d9bfb"</span>
+            }
+            </code></pre>
+            <h3 id="feature-list-definition">Feature list definition</h3>
+            <p>In an Onshape Part Studio, the models in the Part Studio are constructed and defined by a list of parametric features (i.e., the feature list). The definition of all features in the list, including the semantic naming of and the parameters specified to the features, can be retrieved using the <code>PartStudio/getPartStudioFeatures</code> API endpoint (<a href="https://cad.onshape.com/glassworks/explorer/#/PartStudio/getPartStudioFeatures">ref</a>). </p>
+            <p>In an Onshape Assembly, the feature list refers to the list of mate features used to define the relationship between part instances. The feature list definition can be retrieved using the <code>Assembly/getFeatures</code> API endpoint (<a href="https://cad.onshape.com/glassworks/explorer/#/Assembly/getFeatures">ref</a>). </p>
+            <p>All feature list definitions are stored in JSON format, as it is output from the API response. </p>
+            <h3 id="shaded-views-of-the-workspace">Shaded views of the workspace</h3>
+            <p>In both Onshape Part Studio and Assembly, a shaded view image of the workspace can be taken using the API with the view angle specified by a view matrix. For every occurrence of shaded view image capture in the app, two isometric views are taken from the model. Every isometric projection is defined by a $\pm 45 \degree$ rotation of a vertical axis, followed by a rotation of $\arcsin{(\frac{1}{\sqrt{3}})} \degree$ about a horizontal axis. By default, all images are in the size of 128 $\times$ 128 pixels, and pixel size is automatically sized to fit the output image dimensions. With two images, all six faces of the view cube are captured: </p>
+            <ul>
+            <li><code>FRT</code> image captures the front, right, and top face of the view cube </li>
+            <li><code>BLB</code> image Capture the back, left, and bottom face of the view cube</li>
+            </ul>
+            <p>Shaded view images are captured using the <code>PartStudio/getPartStudioShadedViews</code> API endpoint (<a href="https://cad.onshape.com/glassworks/explorer/#/PartStudio/getPartStudioShadedViews">ref</a>) in Part Studio and the <code>Assembly/getAssemblyShadedViews</code> API endpoint (<a href="https://cad.onshape.com/glassworks/explorer/#/Assembly/getAssemblyShadedViews">ref</a>) in Assembly. Data stored in the app is in the following JSON format, where all images are base64 encoded, replacing the <code>xxxxxx</code>: </p>
+            <pre><code class="lang-json">
+            {
+                <span class="hljs-attr">"FRT"</span>: <span class="hljs-string">"data:image/png;base64,xxxxxx"</span>, 
+                <span class="hljs-attr">"BLB"</span>: <span class="hljs-string">"data:image/png;base64,xxxxxx"</span>
+            }
+            </code></pre>
+            <h3 id="mesh-representation-of-the-model">Mesh representation of the model</h3>
+            <p>For Part Studios only, all parts in the model can exported in mesh representation to allow geometric analysis of the product. The mesh data is first retrieved using the <code>PartStudio/exportPartStudioGltf</code> API endpoint (<a href="https://cad.onshape.com/glassworks/explorer/#/PartStudio/exportPartStudioGltf">ref</a>). Then, the GLTF file is automatically converted to STL format to be stored. All stored STL files are base64 encoded to be stored as strings. </p>
+            <h2 id="data-collection">Data Collection</h2>
+            <p>At different occurrences, as detailed in the following sections, different types of design data (as introduced in the <a href="#data-types">data type section</a>) are being collected. </p>
+            <h3 id="at-first-failure-attempt">At first failure attempt</h3>
+            <p>After the first submission attempt, if the submitted model fails to pass the automatic evaluation, the following data are collected: </p>
+            <p>For &quot;single-part part studio&quot; questions and &quot;multi-part part studio&quot; questions: </p>
+            <ul>
+            <li>The <a href="#feature-list-definition">feature list definition</a> at the point of failure </li>
+            <li>Two <a href="#shaded-views-of-the-workspace">shaded view images</a> of the Part Studio </li>
+            <li>One <a href="#mesh-representation-of-the-model">mesh representation</a> of the entire Part Studio, stored as one text string </li>
+            </ul>
+            <h3 id="at-successful-completion">At successful completion</h3>
+            <p>After the successful attempt, which the submitted model passes the automatic evaluation, the following data are collected: </p>
+            <p>For &quot;single-part part studio&quot; questions and &quot;multi-part part studio&quot; questions: </p>
+            <ul>
+            <li>The <a href="#microversion-descriptions">microversion history</a> of the entire document from the microversion logged when the user started the question to the microversion logged when the model submission is evaluated to be correct </li>
+            <li>The <a href="#feature-list-definition">feature list definition</a> at the point of submission </li>
+            <li>Two <a href="#shaded-views-of-the-workspace">shaded view images</a> of the Part Studio  </li>
+            <li>One <a href="#mesh-representation-of-the-model">mesh representation</a> of the entire Part Studio, stored in the format of <code>[(-1, &quot;xxx&quot;)]</code>, where xxx is the base64 encoded STL as string <ul>
+            <li>Ideally, one mesh can be exported after every non-sketch and non-plane feature in the feature list, where the first tuple item of every list item specifies the rollback bar index. However, due to technical constraints, this feature is currently not implemented. </li>
+            </ul>
+            </li>
+            </ul>
+            <h3 id="at-give-up-confirmation">At give-up confirmation</h3>
+            <p>After the first failed submission attempt, the user is given the option to &quot;give-up&quot; on the question. The &quot;give-up&quot; button is available if and only if at least one failed submission has been made. At the point when the user gives up the question, the same types of data are collected as if the submission attempt was successful, as detailed in the <a href="#at-successful-completion">previous section</a>. However, the field for the boolean field <code>is_final_failure</code> will be set to be <code>True</code>. </p>
+        </div>
+    </body>
+</html>
