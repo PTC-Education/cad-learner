@@ -20,12 +20,13 @@ Q_Type_Dict = {
 
 
 # Create your views here.
-def in_app_home(request: HttpRequest, os_user_id: str):
-    curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    return render(request, "questioner/home.html", context={"user":curr_user})
+def home(request: HttpRequest, os_user_id=None):
+    context = {"user": None} 
+    if os_user_id: 
+        curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+        context['user'] = curr_user
+    return render(request, "questioner/home.html", context=context)
 
-def home(request: HttpRequest):
-    return render(request, "questioner/home.html")
 
 def login(request: HttpRequest): 
     """ When the app extension is first opened, this view should 
