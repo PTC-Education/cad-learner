@@ -265,6 +265,10 @@ class Question(models.Model):
     is_published = models.BooleanField(
         default=False, help_text="Users can only access the model after it is published"
     )
+    # This boolean indicates if design data should be collected for this quesiton
+    is_collecting_data = models.BooleanField(
+        default=True, help_text="User design data is only collected when this is set to be True"
+    )
 
     def __str__(self) -> str:
         # Text/String representation of the question 
