@@ -38,7 +38,7 @@ class Reviewer_Admin(admin.ModelAdmin):
 
 class Questions_SPPS_Admin(admin.ModelAdmin): 
     list_display = [
-        '__str__', 'question_name', 'difficulty', 'is_published'
+        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data'
     ]
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'ref_mid', 
@@ -47,7 +47,7 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name']
-    actions = ['publish_question', 'force_update']
+    actions = ['publish_question', 'force_update', 'change_collect_status']
 
     @admin.action(description="Publish/Hide selected questions")
     def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
@@ -63,10 +63,19 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
             item.model_mass = None
             item.save() 
 
+    @admin.action(description="Start/Stop collecting data for selected questions")
+    def change_collect_status(self, request: HttpRequest, queryset: QuerySet[Question_SPPS]) -> None: 
+        for item in queryset: 
+            if item.is_collecting_data: 
+                item.is_collecting_data = False 
+            else: 
+                item.is_collecting_data = True 
+            item.save() 
+
 
 class Questions_MPPS_Admin(admin.ModelAdmin): 
     list_display = [
-        '__str__', 'question_name', 'difficulty', 'is_published'
+        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data'
     ]
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
@@ -75,7 +84,7 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name']
-    actions = ['publish_question', 'force_update']
+    actions = ['publish_question', 'force_update', 'change_collect_status']
 
     @admin.action(description="Publish/Hide selected questions")
     def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_MPPS]) -> None: 
@@ -90,6 +99,15 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
             item.init_mid = None 
             item.ref_mid = None 
             item.model_mass = []
+            item.save() 
+    
+    @admin.action(description="Start/Stop collecting data for selected questions")
+    def change_collect_status(self, request: HttpRequest, queryset: QuerySet[Question_MPPS]) -> None: 
+        for item in queryset: 
+            if item.is_collecting_data: 
+                item.is_collecting_data = False 
+            else: 
+                item.is_collecting_data = True 
             item.save() 
 
 

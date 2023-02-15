@@ -1,6 +1,7 @@
 import os 
 import requests
 from datetime import timedelta
+from typing import Union 
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
@@ -17,6 +18,36 @@ Q_Type_Dict = {
     QuestionType.SINGLE_PART_PS: Question_SPPS, 
     QuestionType.MULTI_PART_PS: Question_MPPS
 }
+_Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS]
+
+
+def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool: 
+    """ Storage space is expensive, and using the data_miner takes up space. 
+    This function sets the criteria on intiation of data collection with the 
+    data_miner. 
+    """
+    # Max number of data entries to be collected for every question 
+    MAX_ENTRIES_PER_QUESTION = 250 
+    # Max number of data entries to be collected for every user on the same question 
+    MAX_ENTRIES_PER_USER = 3
+    # After the MAX_ENTRIES_PER_USER, new data are collected for a user iff the time spent 
+    # has improvement over the best performance in history by a factor of MIN_IMPROV_REQ  
+    MIN_IMPROVE_REQ = 0.2
+
+    if (
+        not question.is_published or 
+        not question.is_collecting_data or 
+        question.completion_count > MAX_ENTRIES_PER_QUESTION
+    ): 
+        return False 
+    
+    user_hist = user.completed_history[str(question)]
+    if len(user_hist) > MAX_ENTRIES_PER_USER: 
+        best_perf = min([item[1] for item in user_hist[:-1]])
+        if user_hist[-1][1] > best_perf * (1 - MIN_IMPROVE_REQ): 
+            return False 
+    
+    return True 
 
 
 # Create your views here.
@@ -244,7 +275,7 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
     elif type(response) is bool: # Submission is correct 
         # Initiate data collection from data miner 
-        if curr_que.is_published: 
+        if should_collect_data(curr_user, curr_que): 
             collect_final_data(curr_user, is_failure=False)
         # Redirect to complete page 
         return HttpResponseRedirect(reverse(
@@ -253,7 +284,8 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
             ]
         ))
     else: # Submission failed 
-        if curr_que.is_published and response[1]: # initiate failure attempt collection 
+        # Initiate failure attempt collection 
+        if response[1] and should_collect_data(curr_user, curr_que): 
             collect_fail_data(curr_user)
         return render(
             request, "questioner/modelling.html", 
@@ -283,7 +315,7 @@ def solution(request: HttpRequest, question_type: str, question_id: int, os_user
     # Initiate any give-up actions if available 
     instructions, do_collect_data = curr_que.give_up(curr_user)
     # Record model's final state at the point of give-up 
-    if do_collect_data: 
+    if do_collect_data and should_collect_data(curr_user, curr_que): 
         collect_final_data(curr_user, is_failure=True)
 
     return render(
