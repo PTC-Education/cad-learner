@@ -41,7 +41,10 @@ def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool:
     ): 
         return False 
     
-    user_hist = user.completed_history[str(question)]
+    try: 
+        user_hist = user.completed_history[str(question)]
+    except KeyError: # no history yet 
+        return True 
     if len(user_hist) > MAX_ENTRIES_PER_USER: 
         best_perf = min([item[1] for item in user_hist[:-1]])
         if user_hist[-1][1] > best_perf * (1 - MIN_IMPROVE_REQ): 
