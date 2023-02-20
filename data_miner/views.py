@@ -4,14 +4,15 @@ import django_rq
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 
-from .models import HistoryData_PS
+from .models import HistoryData_PS, HistoryData_AS
 from questioner.models import AuthUser, QuestionType
 
 
 # Create your views here.
 D_Type_Dict = {
     QuestionType.SINGLE_PART_PS: HistoryData_PS, 
-    QuestionType.MULTI_PART_PS: HistoryData_PS
+    QuestionType.MULTI_PART_PS: HistoryData_PS, 
+    QuestionType.ASSEMBLY: HistoryData_AS
 }
 
 
@@ -29,6 +30,7 @@ def collect_fail_data(user: AuthUser) -> bool:
         question_id=user.curr_question_id, 
         question_type=user.curr_question_type 
     )
+    data_entry.first_failed_time = timezone.now() 
     data_entry.save() 
 
     # Initiate failure data recrod 
@@ -36,15 +38,8 @@ def collect_fail_data(user: AuthUser) -> bool:
         user.os_domain, user.did, user.start_mid, 
         user.end_mid, user.eid, user.etype
     )
-
-    if (
-        user.curr_question_type == QuestionType.SINGLE_PART_PS or 
-        user.curr_question_type == QuestionType.MULTI_PART_PS 
-    ): 
-        data_entry.first_failed_time = timezone.now() 
-        data_entry.save() 
-        # Send data collection jobs to the RQ queue 
-        django_rq.enqueue(data_entry.first_failure_record, args=[user, query_info])
+    # Send data collection jobs to the RQ queue 
+    django_rq.enqueue(data_entry.first_failure_record, args=[user, query_info])
     return True
 
 
@@ -95,11 +90,6 @@ def collect_final_data(user: AuthUser, is_failure: bool) -> bool:
         user.os_domain, user.did, user.start_mid, 
         user.end_mid, user.eid, user.etype
     )
-
-    if (
-        user.curr_question_type == QuestionType.SINGLE_PART_PS or 
-        user.curr_question_type == QuestionType.MULTI_PART_PS 
-    ): 
-        # Send data collection jobs to the RQ queue 
-        django_rq.enqueue(data_entry.final_sub_record, args=[user, query_info])
+    # Send data collection jobs to the RQ queue 
+    django_rq.enqueue(data_entry.final_sub_record, args=[user, query_info])
     return True

@@ -72,6 +72,12 @@ class HistoryData(models.Model):
     # This field tracks the latter time for database update purpose. 
     final_query_complete_time = models.DateTimeField(default=None, null=True)
 
+    def first_failure_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
+        return None 
+
+    def final_sub_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
+        return None 
+
 
 class HistoryData_PS(HistoryData): 
     """ Used for both single-part part studio (SPPS) questions and 
@@ -122,6 +128,54 @@ class HistoryData_PS(HistoryData):
             "BLB": get_shaded_view(user, q_info, view_mat=BLB_VIEW_MAT)
         }
         self.process_mesh = [(-1, get_stl_mesh(user, q_info))]
+        self.final_query_complete_time = timezone.now() 
+        self.save() 
+        return None 
+
+
+class HistoryData_AS(HistoryData): 
+    """ Used for both assembly mating (ASMB) questions and 
+    """
+    # First failed submission 
+    first_failed_time = models.DateTimeField(default=None, null=True)
+    failed_assembly_def = models.JSONField(default=dict, null=True)
+    failed_shaded_views = models.JSONField(default=dict, null=True)
+
+    # Final submission 
+    final_assembly_def = models.JSONField(default=dict, null=True)
+    final_shaded_views = models.JSONField(default=dict, null=True)
+
+    def first_failure_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
+        """ Record data for first failed submission 
+        q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+        """
+        # Check if user's OAuth token still valid 
+        if user.expires_at <= timezone.now() + timedelta(minutes=10): 
+            user.refresh_oauth_token() 
+
+        self.failed_feature_list = get_assembly_definition(user, q_info)
+        self.failed_shaded_views = {
+            "FRT": get_shaded_view(user, q_info, view_mat=FRT_VIEW_MAT), 
+            "BLB": get_shaded_view(user, q_info, view_mat=BLB_VIEW_MAT)
+        }
+        self.final_query_complete_time = timezone.now() 
+        self.save() 
+        return None 
+
+    def final_sub_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
+        """ Record data for final correct submission 
+        q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+        """
+        # Check if user's OAuth token still valid 
+        if user.expires_at <= timezone.now() + timedelta(minutes=10): 
+            user.refresh_oauth_token() 
+
+        self.microversions_discrip = get_microversions_discrip(user, q_info)
+        self.final_assembly_def = get_assembly_definition(user, q_info)
+        self.final_shaded_views = {
+            "FRT": get_shaded_view(user, q_info, view_mat=FRT_VIEW_MAT), 
+            "BLB": get_shaded_view(user, q_info, view_mat=BLB_VIEW_MAT)
+        }
         self.final_query_complete_time = timezone.now() 
         self.save() 
         return None 
@@ -282,3 +336,30 @@ def get_stl_mesh(user: AuthUser, q_info: Tuple[str], rollbackBarIndex=-1) -> str
     )
     stl_mesh = trimesh.exchange.stl.export_stl(mesh)
     return base64.b64encode(stl_mesh).decode()
+
+
+def get_assembly_definition(user: AuthUser, q_info: Tuple[str], includeMateFeatures=True) -> Any: 
+    """ Get the definition of the assembly, including all part instances and mates 
+
+    q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+    """
+    response = requests.get(
+        os.path.join(
+            q_info[0], 
+            "api/assemblies/d/{}/m/{}/e/{}".format(
+                q_info[1], q_info[3], q_info[4]
+            )
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + user.access_token
+        }, 
+        params={
+            "includeMateFeatures": includeMateFeatures 
+        }
+    )
+    if response.ok: 
+        return response.json() 
+    else: 
+        return None 

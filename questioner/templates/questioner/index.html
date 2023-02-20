@@ -97,6 +97,9 @@
                             {% endif %}
                             <!-- Completion count -->
                             <li>Number of times completed: {{ question.completion_count }}</li>
+                            {% if user.is_reviewer %}
+                                <li>Number of times completed by reviewers: {{ question.reviewer_completion_count }}</li>
+                            {% endif %}
                             <!-- Average completion time spent -->
                             {% if question.completion_count > 0 %}
                                 <li>Average time spent: {{ question.get_avg_time }}</li>
