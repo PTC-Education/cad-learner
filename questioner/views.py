@@ -16,9 +16,10 @@ from data_miner.views import collect_fail_data, collect_final_data
 
 Q_Type_Dict = {
     QuestionType.SINGLE_PART_PS: Question_SPPS, 
-    QuestionType.MULTI_PART_PS: Question_MPPS
+    QuestionType.MULTI_PART_PS: Question_MPPS, 
+    QuestionType.ASSEMBLY: Question_ASMB
 }
-_Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS]
+_Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS, Question_ASMB]
 
 
 def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool: 
