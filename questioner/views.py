@@ -10,15 +10,16 @@ from django.utils import timezone
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
 
-from .models import AuthUser, Question, Question_SPPS, Question_MPPS, QuestionType
+from .models import * 
 from data_miner.views import collect_fail_data, collect_final_data
 
 
 Q_Type_Dict = {
     QuestionType.SINGLE_PART_PS: Question_SPPS, 
-    QuestionType.MULTI_PART_PS: Question_MPPS
+    QuestionType.MULTI_PART_PS: Question_MPPS, 
+    QuestionType.ASSEMBLY: Question_ASMB
 }
-_Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS]
+_Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS, Question_ASMB]
 
 
 def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool: 
@@ -186,32 +187,43 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
             curr_user.refresh_oauth_token() 
         
         # Check if the user is starting with an empty part studio or assembly 
-        response = requests.get(
-            os.path.join(
-                curr_user.os_domain,
-                "api/{}/d/{}/w/{}/e/{}/features".format(
-                    curr_user.etype, curr_user.did, curr_user.wid, curr_user.eid
-                )
-            ), 
-            headers={
-                "Content-Type": "application/json", 
-                "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-                "Authorization": "Bearer " + curr_user.access_token
-            }
-        )
-        if response.ok: 
-            response = response.json()
-            if len(response['features']) > 0: 
-                return render(
-                    request, "questioner/index.html", 
-                    context={
+        if curr_user.etype == ElementType.PARTSTUDIO: 
+            response = get_feature_list(curr_user)
+            if response: 
+                if len(response['features']) > 0: 
+                    context = {
                         "user": curr_user, 
-                        "questions": Question.objects.filter(is_published=True).order_by("question_name"), 
                         "error_message": "Please start with an empty part studio and relaunch this app ..."
                     }
-                )
+                    if curr_user.is_reviewer: 
+                        context["questions"] = Question.objects.order_by("question_name")
+                    else: 
+                        context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+                    return render(request, "questioner/index.html", context=context)
+            else: 
+                return HttpResponse("An unexpected error has occurred. You may have lost your internet connection or granted OAuth access to the wrong Onshape account/Enterprise. Please refresh the page and relaunch the app ...")
+        elif curr_user.etype == ElementType.ASSEMBLY: 
+            response = get_assembly_definition(curr_user)
+            if response: 
+                if (
+                    response["parts"] or 
+                    response['rootAssembly']['instances'] or 
+                    response['rootAssembly']['features'] or 
+                    response['subAssemblies']
+                ): 
+                    context = {
+                        "user": curr_user, 
+                        "error_message": "Please start with an empty assembly and relaunch this app ..."
+                    }
+                    if curr_user.is_reviewer: 
+                        context["questions"] = Question.objects.order_by("question_name")
+                    else: 
+                        context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+                    return render(request, "questioner/index.html", context=context)
+            else: 
+                return HttpResponse("An unexpected error has occurred. You may have lost your internet connection or granted OAuth access to the wrong Onshape account/Enterprise. Please refresh the page and relaunch the app ...")
         else: 
-            return HttpResponse("An unexpected error has occurred. Please check internet connection and relaunch Onshape ...")
+            return HttpResponse("Unrecognized element type. Please relaunch the app in a Part Studio or an Assembly ...")
 
         # Run any start modelling process 
         curr_user.add_field = {} # clean field 
@@ -228,24 +240,7 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
         curr_user.end_mid = None
 
         # Get current microversion ID 
-        response = requests.get(
-            os.path.join(
-                curr_user.os_domain, 
-                "api/documents/d/{}/w/{}/currentmicroversion".format(
-                    curr_user.did, curr_user.wid, curr_user.eid
-                )
-            ), 
-            headers={
-                "Content-Type": "application/json", 
-                "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
-                "Authorization": "Bearer " + curr_user.access_token
-            }
-        )
-        if response.ok: 
-            response = response.json() 
-            curr_user.start_mid = response['microversion']
-        else: 
-            curr_user.start_mid = None 
+        curr_user.start_mid = get_current_microversion(curr_user)
         curr_user.save() 
 
     return render(

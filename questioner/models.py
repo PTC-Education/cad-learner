@@ -56,6 +56,7 @@ class QuestionType(models.TextChoices):
     UNKNOWN = 'UNKN', gettext_lazy('Unknown')
     SINGLE_PART_PS = 'SPPS', gettext_lazy('Single-part Part Studio')
     MULTI_PART_PS = 'MPPS', gettext_lazy('Multi-part Part Studio')
+    ASSEMBLY = 'ASMB', gettext_lazy('Assembly Mating')
 
 
 class ElementType(models.TextChoices): 
@@ -375,7 +376,7 @@ class Question_SPPS(Question):
     model_mass = models.FloatField(null=True, help_text="Mass in kg")
     model_volume = models.FloatField(null=True, help_text="Volume in m^3")
     model_SA = models.FloatField(null=True, help_text="Surface area in m^2")
-    model_inertia = models.JSONField(null=True, help_text="3 element array describing the Principal Interia")
+    model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia")
 
     class Meta: 
         verbose_name = "Single-part Part Studio Question"
@@ -477,17 +478,16 @@ class Question_SPPS(Question):
                 '''
             # Return failure messages 
             if not user.end_mid: # first failure 
-                user.end_mid = get_microversion(user)
+                user.end_mid = get_current_microversion(user)
                 user.save() 
                 return fail_msg + "</table>", True 
             else: 
                 return fail_msg + "</table>", False
         else: 
-            # Initiate data collection from data_miner 
             # Update database to record success 
             time_spent = (timezone.now() - user.last_start).total_seconds()
             feature_cnt = len(feature_list['features'])
-            end_mid = get_microversion(user)
+            end_mid = get_current_microversion(user)
 
             self.completion_count += 1
             self.completion_time.append(time_spent)
@@ -518,7 +518,7 @@ class Question_SPPS(Question):
         how to transform the imported part to see mismatch of their model. 
         Returns: Tuple[message, ?collect_data]
         """
-        temp_mid = get_microversion(user) 
+        temp_mid = get_current_microversion(user) 
         response = insert_ps_to_ps(
             user, self.did, self.vid, self.eid, self.ref_mid, 
             "Derived Reference Part"
@@ -621,6 +621,7 @@ class Question_MPPS(Question):
     model_mass = models.JSONField(default=list, null=True, help_text="Mass in kg")
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
     model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
+    model_inertia = models.JSONField(default=list, null=True, help_text="List of 3 element array describing the Principal Interia") # list of list of inertia of parts 
 
     class Meta: 
         verbose_name = "Multi-part Part Studio Question"
@@ -666,17 +667,20 @@ class Question_MPPS(Question):
         there is one and only one part in the user's model with matching properties. 
         Limitation: avoid having parts with properties that are too closed numerically. 
         """
-        ref_prop = [self.model_mass, self.model_volume, self.model_SA]
+        ref_prop = [
+            self.model_mass, self.model_volume, self.model_SA, 
+            [val[0] for val in self.model_inertia]
+        ]
         ref_prop = sorted(
             [
-                (ref_prop[0][i], ref_prop[1][i], ref_prop[2][i]) 
+                (ref_prop[0][i], ref_prop[1][i], ref_prop[2][i], ref_prop[3][i]) 
                 for i in range(len(ref_prop[0]))
             ], 
             key=lambda x : x[0]
         )
         user_prop = sorted(
             [
-                (user_prop[0][i], user_prop[1][i], user_prop[2][i]) 
+                (user_prop[0][i], user_prop[1][i], user_prop[2][i], user_prop[3][i]) 
                 for i in range(len(user_prop[0]))
             ], 
             key=lambda x : x[0]
@@ -722,7 +726,7 @@ class Question_MPPS(Question):
         elif len(mass_prop['bodies']) != len(self.model_mass): # Check num of parts 
             err_msg = "The number of parts in your Part Studio does not match the reference Part Studio."
             if not user.end_mid: # first failure 
-                user.end_mid = get_microversion(user)
+                user.end_mid = get_current_microversion(user)
                 user.save() 
                 return err_msg, True 
             else: 
@@ -741,12 +745,13 @@ class Question_MPPS(Question):
             [
                 [prt['mass'][0] for prt in mass_prop['bodies'].values()], 
                 [prt['volume'][0] for prt in mass_prop['bodies'].values()], 
-                [prt['periphery'][0] for prt in mass_prop['bodies'].values()]
+                [prt['periphery'][0] for prt in mass_prop['bodies'].values()], 
+                [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()]
             ]
         )
         if not type(eval_correct) is bool: 
             if not user.end_mid: # first failure 
-                user.end_mid = get_microversion(user)
+                user.end_mid = get_current_microversion(user)
                 user.save() 
                 return eval_correct, True 
             else: 
@@ -755,7 +760,7 @@ class Question_MPPS(Question):
             # Update database to record success 
             time_spent = (timezone.now() - user.last_start).total_seconds()
             feature_cnt = len(feature_list['features'])
-            end_mid = get_microversion(user)
+            end_mid = get_current_microversion(user)
 
             self.completion_count += 1
             self.completion_time.append(time_spent)
@@ -785,7 +790,7 @@ class Question_MPPS(Question):
         with instructions, depending on the question type
         Returns: Tuple[message, ?collect_data]
         """
-        temp_mid = get_microversion(user)
+        temp_mid = get_current_microversion(user)
         response = insert_ps_to_ps(
             user, self.did, self.vid, self.eid, self.ref_mid, 
             "Derived Reference Parts"
@@ -866,6 +871,178 @@ class Question_MPPS(Question):
                 self.model_SA = [
                     part['periphery'][0] for part in mass_prop['bodies'].values()
                 ]
+                self.model_inertia = [
+                    part['principalInertia'] for part in mass_prop['bodies'].values() 
+                ]
+        return super().save(*args, **kwargs)
+
+
+class Question_ASMB(Question): 
+    # Additional question information 
+    starting_eid = models.CharField(
+        "Source Part Studio element ID", 
+        max_length=40, default=None, null=True, 
+        help_text="Starting part studio with parts that need to be imported to user assembly to be assembled."
+    )
+
+    # Additional analytics to be collected and presented 
+    completion_feature_cnt = models.JSONField(
+        default=list, help_text="List of mate feature counts required by users in history"
+    )
+
+    # Properties for evaluation 
+    model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia")
+
+    class Meta: 
+        verbose_name = "Assembly Mating Question"
+
+    def publish(self) -> None: 
+        if self.is_published: 
+            self.is_published = False 
+        else: 
+            # Check if necessary information is present
+            if self.publishable() and self.model_inertia and self.starting_eid: 
+                self.is_published = True 
+        self.save() 
+        return None 
+
+    def initiate_actions(self, user: AuthUser) -> bool: 
+        """ Initiating actions are required to insert parts from the starting 
+        Part Studio into users' working assembly as starting parts to be assembled. 
+        Return True if successful, otherwise False 
+        """
+        return create_assembly_instance(
+            user, self.did, self.vid, self.starting_eid
+        )
+        
+
+    def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
+        """ Given the user submiting a model for evaluation, this function checks if the 
+        user model matches the reference model. 
+        - If evaluation passed, True is returned. 
+        - If evaluation cannot proceed due to API errors, False is returned. 
+        - If evaluation found mismatch, a table showing the difference is returned to 
+          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
+        """
+        # Get info from user model 
+        assembly_def = get_assembly_definition(user)
+        mass_prop = get_mass_properties(
+            user.did, "w", user.wid, user.eid, user.etype, 
+            auth_token=user.access_token
+        )
+        if not assembly_def or not mass_prop: # API call failed 
+            return False 
+
+        # Count number of mates used 
+        feature_cnt = len(assembly_def['rootAssembly']['features'])
+        for sub_ass in assembly_def['subAssemblies']: 
+            feature_cnt += len(sub_ass['features'])
+        if feature_cnt == 0: 
+            return "No mate features found - please mate the parts then try re-submitting.", False 
+
+        # Compare property values 
+        ref_model = self.model_inertia
+        user_model = mass_prop['principalInertia']
+        err_allowance = 1e-8
+
+        if abs(ref_model[0] - user_model[0]) > ref_model[0] * err_allowance: 
+            # Did not pass and return failure messages 
+            fail_msg = "<p>The difference between your mated assembly and the reference assembly is larger than the allowed range of tolerance. Please try again and re-submit ...</p>"
+            if not user.end_mid: # first failure 
+                user.end_mid = get_current_microversion(user)
+                user.save() 
+                return fail_msg, True 
+            else: 
+                return fail_msg, False
+        else: # pass 
+            # Update database to record success 
+            time_spent = (timezone.now() - user.last_start).total_seconds()
+            feature_cnt = feature_cnt
+            end_mid = get_current_microversion(user)
+
+            self.completion_count += 1
+            self.completion_time.append(time_spent)
+            self.completion_feature_cnt.append(feature_cnt)
+            if user.is_reviewer: 
+                self.reviewer_completion_count += 1
+            self.save()
+
+            user.end_mid = end_mid
+            user.is_modelling = False 
+            if str(self) in user.completed_history: 
+                user.completed_history[str(self)].append((
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent, feature_cnt
+                ))
+            else: 
+                user.completed_history[str(self)] = [(
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent, feature_cnt
+                )]
+            user.save() 
+            return True 
+
+    def give_up(self, user:AuthUser) -> str: 
+        """ The user gives up on the problem, no solutions to be provided yet 
+        Returns: Tuple[message, ?collect_data]
+        """
+        temp_mid = get_current_microversion(user) 
+        msg = "<p>To view the solution, please visit the source document to view the reference part.</p>"
+        
+        # Determine if data miner should collect data 
+        if user.end_mid: # if at least one meaningful attempt evaluated before 
+            time_spent = (timezone.now() - user.last_start).total_seconds()
+            if str(self) in user.failure_history: 
+                user.failure_history[str(self)].append((
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                ))
+            else: 
+                user.failure_history[str(self)] = [(
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                )]
+            user.end_mid = temp_mid
+            user.save() 
+            return msg, True 
+        else: 
+            return msg, False 
+
+    
+    def show_result(self, user: AuthUser, show_best=False) -> str: 
+        """ Other than the default time spent comparison, also plot the 
+        distribution of features used to complete the question. 
+        """
+        if show_best: 
+            my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
+        else: 
+            my_fea_cnt = user.completed_history[str(self)][-1][2] 
+        output = "<p>You completed the model {} with {} features.</p>".format(
+            self.question_name, int(my_fea_cnt)
+        )
+        # Plot a histogram of feature counts 
+        if len(self.completion_feature_cnt) >= 10: 
+            output += """<img src="{}" alt="stats_time"/>""".format(
+                plot_dist(
+                    self.completion_feature_cnt, my_fea_cnt, 
+                    x_label="Number of Features Used to Complete This Question"
+                )
+            )
+        return super().show_result(user, show_best=show_best) + output
+
+    def save(self, *args, **kwargs): 
+        self.question_type = QuestionType.ASSEMBLY
+        self.etype = ElementType.ASSEMBLY
+        self.allowed_etype = ElementType.ASSEMBLY
+        # Get reference geometries 
+        if not self.model_inertia: 
+            mass_prop = get_mass_properties(
+                self.did, "v", self.vid, self.eid, self.etype, 
+                auth_token=get_admin_token(), massAsGroup=True
+            )
+            if mass_prop: 
+                self.model_inertia = mass_prop['principalInertia']
+            self.save() 
         return super().save(*args, **kwargs)
 
 
@@ -984,7 +1161,7 @@ def get_feature_list(user: AuthUser) -> Any:
         return None 
 
 
-def get_microversion(user: AuthUser) -> Union[str, None]: 
+def get_current_microversion(user: AuthUser) -> Union[str, None]: 
     """ Get the current microversion of the user's working document 
     """
     response = requests.get(
@@ -1085,6 +1262,60 @@ def insert_ps_to_ps(
     else: 
         # Return the import derived feature ID 
         return response.json()['feature']['featureId']
+
+
+def create_assembly_instance(
+    user: AuthUser, s_did: str, s_vid: str, s_eid: str
+) -> bool: 
+    """ Insert all parts from a part studio (version) to a working assembly as 
+    instances 
+    """
+    response = requests.post(
+        os.path.join(
+            user.os_domain, 
+            "api/assemblies/d/{}/w/{}/e/{}/instances".format(
+                user.did, user.wid, user.eid
+            )
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + user.access_token
+        }, 
+        json={
+            'documentId': s_did, 
+            'versionId': s_vid, 
+            'elementId': s_eid, 
+            'isWholePartStudio': True 
+        }
+    )
+    if response.ok: 
+        return True 
+    else: 
+        return False 
+
+
+def get_assembly_definition(user: AuthUser, includeMateFeatures=True) -> Any: 
+    response = requests.get(
+        os.path.join(
+            user.os_domain, 
+            "api/assemblies/d/{}/w/{}/e/{}".format(
+                user.did, user.wid, user.eid
+            )
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + user.access_token
+        }, 
+        params={
+            "includeMateFeatures": includeMateFeatures 
+        }
+    )
+    if response.ok: 
+        return response.json() 
+    else: 
+        return None 
 
 
 #################### Other helper functions ####################

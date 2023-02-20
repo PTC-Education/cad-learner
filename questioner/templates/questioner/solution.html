@@ -11,6 +11,10 @@
             <img src="{% static 'questioner/images/ps_sol_instruct.gif' %}" alt="derive_instruction" />
         {% endif %}
         <br /><br />
+        <!-- View reference document -->
+        <form action="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer">
+            <input type="submit" value="Open Reference Document"/>
+        </form>
         <!-- Return to the home page -->
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>
