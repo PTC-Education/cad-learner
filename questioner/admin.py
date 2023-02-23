@@ -38,7 +38,8 @@ class Reviewer_Admin(admin.ModelAdmin):
 
 class Questions_SPPS_Admin(admin.ModelAdmin): 
     list_display = [
-        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data'
+        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data', 
+        'completion_count', 'reviewer_completion_count'
     ]
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'ref_mid', 
@@ -46,7 +47,7 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
         'is_published', 'completion_count', 'reviewer_completion_count'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
-    search_fields = ['question_name']
+    search_fields = ['question_name', '__str__']
     actions = ['publish_question', 'force_update', 'change_collect_status']
 
     @admin.action(description="Publish/Hide selected questions")
@@ -75,7 +76,8 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
 
 class Questions_MPPS_Admin(admin.ModelAdmin): 
     list_display = [
-        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data'
+        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data', 
+        'completion_count', 'reviewer_completion_count'
     ]
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
@@ -83,7 +85,7 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
         'is_published', 'completion_count', 'reviewer_completion_count'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
-    search_fields = ['question_name']
+    search_fields = ['question_name', '__str__']
     actions = ['publish_question', 'force_update', 'change_collect_status']
 
     @admin.action(description="Publish/Hide selected questions")
@@ -113,14 +115,15 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
 
 class Questions_ASMB_Admin(admin.ModelAdmin): 
     list_display = [
-        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data'
+        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data', 
+        'completion_count', 'reviewer_completion_count'
     ]
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'model_inertia', 
         'is_published', 'completion_count', 'reviewer_completion_count'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
-    search_fields = ['question_name']
+    search_fields = ['question_name', '__str__']
     actions = ['publish_question', 'force_update', 'change_collect_status']
 
     @admin.action(description="Publish/Hide selected questions")
