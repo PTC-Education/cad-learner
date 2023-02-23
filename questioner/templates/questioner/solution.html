@@ -15,6 +15,10 @@
         <form action="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer">
             <input type="submit" value="Open Reference Document"/>
         </form>
+        <!-- Submit Feedback -->
+        <form action="https://docs.google.com/forms/d/e/1FAIpQLSeOcFJo3V05CMtQSAXmmiF22xdfsdaob7_tBCTCDEwZVdVRwA/viewform?usp=sf_link" target="_blank">
+            <input type="submit" value="Open Feedback Form (optional)"/>
+        </form>
         <!-- Return to the home page -->
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>
