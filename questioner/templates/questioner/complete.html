@@ -11,6 +11,10 @@
         {% else %}
             <p>Your Onshape CAD model matches all expected values from the reference model.</p> 
         {% endif %}
+        <!-- Submit Feedback -->
+        <form action="https://docs.google.com/forms/d/e/1FAIpQLSeOcFJo3V05CMtQSAXmmiF22xdfsdaob7_tBCTCDEwZVdVRwA/viewform?usp=sf_link" target="_blank">
+            <input type="submit" value="Open Feedback Form (optional)"/>
+        </form>
         <!-- Return to the home page -->
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>
