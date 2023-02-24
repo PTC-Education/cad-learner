@@ -19,12 +19,23 @@
         {% endif %}
         <!-- Welcome message and FAQ's -->
         <div>
-            <h1>Welcome</h1>
-            <p>We created the CAD Challenges app to allow Onshape users to practice their parametric modeling skills. Because lots of people will be creating the same models, we have the opportunity to do some interesting research on the various ways that the same geometry can be created.</p>
+            <h1 id="details">Detailed Instructions</h1>
+            <p>When opening the app, you will be presented with a list of all of the available questions.  You may filter the questions by selecting a difficulty category, Easy, Medium, or Challenging.  Or you may search for specifc questions using the search bar. Clicking a question will reveal the "Start this question" button, as well as some details about the question such as average modeling time.</p>
+            <p>Make sure you are in an empty part studio tab and click the "Start this question" button to begin modeling.  If you are not in an empty part studio tab, you will receive an error message.</p>
+            <p>Once you click the start button, the timer will begin and you will be presented with a standard part drawing with dimensioned 2D orthographic views, and usually a shaded isometric view.  There is also a title block at the bottom.  Use the views and dimensions to model the part, accurately and quickly.</p>
+            <p>When you are done modeling, press the "Submit" button.  Your part will be assessed based on various mass properties and a table will indicate whether your part matches the expected values or not.  If not, you can keep modeling and re-submit.</p>
+            <p>If your model is correct, Congratulations!  You will see some stats on your modeling and an opportunity to provide feedback.  Click the home button and keep going!</p>
+            <h2>Important Modeling Notes</h2>
+            <ol>
+            <li><strong>Units</strong> - Some parts are dimensioned in inches, while others are dimensioned in millimeters.  It is advised that you change your workspace units to match the drawing.  Workspace units are under the document menu (three stacked horizontal lines) at the top left of the document toolbar. </li>
+            <li><strong>Material</strong> - Your model will be validated using its mass properties.  That means you need to set the part material correctly.  Once you have your part created, right-click it in the parts list and select "Assign material..." Make sure your part's material matches the material listed in the title block.</li>
+            <li><strong>Abbreviations</strong> - CAD Challenges uses conventional engineering drawing standards.  In particular, look out for abbreviations such as TYP and THRU.  TYP is used to call out a chamfer or fillet dimension that is used in several places in a part.  THRU is used to call out a through hole that might not be evident from the drawing views.</li>
+            </ol>
         </div>
         <!-- Document data that is collected -->
         <div>
             <h1 id="documentation-on-data-collection">Documentation on Data Collection</h1>
+            <p>Through the CAD Challenges app, a lot of people will be creating the same models.  As a result, we have the opportunity to do some interesting research on the various ways that the same geometry can be created.</p>
             <p>While the front-end of the app supports CAD modelling challenge questions with automatic geometric evaluation of correctness, the back-end of the app also collects a selection of design data from the users to support research studies. </p>
             <ul>
                 <li><a href="#data-types">Data Types</a>: types of data that the app is currently collecting <ul>
@@ -100,5 +111,17 @@
             <h3 id="at-give-up-confirmation">At give-up confirmation</h3>
             <p>After the first failed submission attempt, the user is given the option to &quot;give-up&quot; on the question. The &quot;give-up&quot; button is available if and only if at least one failed submission has been made. At the point when the user gives up the question, the same types of data are collected as if the submission attempt was successful, as detailed in the <a href="#at-successful-completion">previous section</a>. However, the field for the boolean field <code>is_final_failure</code> will be set to be <code>True</code>. </p>
         </div>
+        {% if user %}
+            <!-- Return to the home page -->
+            <br />
+            <form action="{% url 'questioner:index' user.os_user_id %}">
+                <input type="submit" value="Return to Home Page"/>
+            </form>
+        {% else %}
+            <!-- Load app logo at the top of the page -->
+            <div id="logo">
+                <img id="logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo"/>
+            </div>
+        {% endif %}
     </body>
 </html>

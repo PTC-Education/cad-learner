@@ -4,12 +4,26 @@ body {
     font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
 }
 
+h3 {
+    margin-bottom: 0px;
+}
+
+ol {
+    margin-top: .2em;
+    margin-bottom: .2em;
+}
+
+.details {
+    margin:.5em 0em;
+    font-style: italic;
+    font-size: .8em;
+}
 #disclaimer {
     position: fixed;
     width: 100%;
     left: 0;
     bottom: 0;
-    text-align: left;
+    text-align: center;
     padding: 4px;
     font-size: 10px;
     background-color: white;

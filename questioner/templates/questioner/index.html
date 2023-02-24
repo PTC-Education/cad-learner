@@ -26,6 +26,7 @@
                 <li>You have up to <strong>one hour</strong> to complete the challenge</li>
                 <li>Click "Submit" at the top of the app when you finish</li>
             </ol>
+            <p class="details">For more information, view the <a href="{% url 'questioner:home' user.os_user_id %}#details">detailed instructions</a>.</p>
         </div>
         <!-- Search menu to filter by question names -->
         <div>
@@ -131,7 +132,7 @@
         <br /><br />
         <!-- Disclaimer -->
         <div>
-            <p id="disclaimer"><b>DISCLAIMER: </b>By using this app you are agreeing to have anonymized data about your modelling process recorded and used for research purposes. <a href="{% url 'questioner:home' user.os_user_id %}">Click here</a> to learn more.</p>
+            <p id="disclaimer"><a href="{% url 'questioner:home' user.os_user_id %}#documentation-on-data-collection">Data Collection Disclaimer</a> | <a href="{% url 'questioner:home' user.os_user_id %}#details">Detailed Instructions</a></p>
         </div>
         <!-- Enable hide-and-show for accordions -->
         <script src="{% static 'questioner/accordion.js' %}" type="text/javascript"></script>
