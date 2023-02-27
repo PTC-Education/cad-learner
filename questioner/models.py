@@ -1134,6 +1134,9 @@ class Question_Step_PS(models.Model):
         help_text="Last microversion of the reference element's version"
     )
     
+    class Meta: 
+        verbose_name = "MSPS Question Step"
+    
     # Properties for evaluation 
     model_mass = models.JSONField(default=list, null=True, help_text="Mass in kg")
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")

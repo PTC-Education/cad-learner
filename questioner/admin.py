@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.http import HttpRequest
 from django.db.models import QuerySet
-from .models import AuthUser, Reviewer, Question_SPPS, Question_MPPS, Question_ASMB
+from .models import AuthUser, Reviewer, Question_SPPS, Question_MPPS, Question_ASMB, Question_MSPS, Question_Step_PS
 
 
 # Register your models here.
@@ -149,7 +149,53 @@ class Questions_ASMB_Admin(admin.ModelAdmin):
             item.save() 
 
 
+class PS_Steps(admin.TabularInline): 
+    model = Question_Step_PS 
+    extra = 1
+    can_delete = True 
+    readonly_fields = [
+        'mid', 'model_mass', 'model_volume', 'model_SA', 'model_inertia'
+    ]
+
+
+class Questions_MSPS_Admin(admin.ModelAdmin): 
+    inlines = [PS_Steps]
+    list_display = [
+        '__str__', 'question_name', 'difficulty', 'is_published', 'is_collecting_data', 
+        'completion_count', 'reviewer_completion_count'
+    ]
+    readonly_fields = [
+        'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
+        'is_published', 'completion_count', 'reviewer_completion_count'
+    ]
+    exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
+    search_fields = ['question_name', '__str__']
+    actions = ['publish_question', 'force_update', 'change_collect_status']
+
+    @admin.action(description="Publish/Hide selected questions")
+    def publish_question(self, request: HttpRequest, queryset: QuerySet[Question_MSPS]) -> None: 
+        for item in queryset: 
+            item.publish() 
+    
+    @admin.action(description="Force update selected questions")
+    def force_update(self, request: HttpRequest, queryset: QuerySet[Question_MSPS]) -> None: 
+        for item in queryset: 
+            item.thumbnail = None 
+            item.drawing_jpeg = None 
+            item.save() 
+    
+    @admin.action(description="Start/Stop collecting data for selected questions")
+    def change_collect_status(self, request: HttpRequest, queryset: QuerySet[Question_MSPS]) -> None: 
+        for item in queryset: 
+            if item.is_collecting_data: 
+                item.is_collecting_data = False 
+            else: 
+                item.is_collecting_data = True 
+            item.save() 
+
+
 admin.site.register(Reviewer, Reviewer_Admin)
 admin.site.register(Question_SPPS, Questions_SPPS_Admin)
 admin.site.register(Question_MPPS, Questions_MPPS_Admin)
 admin.site.register(Question_ASMB, Questions_ASMB_Admin)
+admin.site.register(Question_MSPS, Questions_MSPS_Admin)
