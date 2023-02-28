@@ -363,7 +363,10 @@ class Question(models.Model):
         if not self.thumbnail: 
             self.thumbnail = get_thumbnail(self, get_admin_token()) 
         if not self.drawing_jpeg: 
-            self.drawing_jpeg = get_jpeg_drawing(self, get_admin_token())
+            self.drawing_jpeg = get_jpeg_drawing(
+                self.did, self.vid, self.jpeg_drawing_eid, 
+                get_admin_token()
+            )
         return super().save(*args, **kwargs)
 
 
@@ -546,7 +549,9 @@ class Question_SPPS(Question):
         self.is_multi_step = False 
         # Get microversion IDs 
         if not self.ref_mid: 
-            ele_info = get_elements(self, auth_token=get_admin_token(), elementId=self.eid)
+            ele_info = get_elements(
+                self.did, self.vid, auth_token=get_admin_token(), elementId=self.eid
+            )
             if ele_info: 
                 self.ref_mid = ele_info[0]['microversionId']
         # Get reference geometries 
@@ -560,7 +565,6 @@ class Question_SPPS(Question):
                 self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
                 self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
                 self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
-            self.save() 
         return super().save(*args, **kwargs)
 
 
@@ -568,7 +572,7 @@ class Question_MPPS(Question):
     # Additional question information 
     starting_eid = models.CharField(
         "Starting element ID", 
-        max_length=40, default=None, null=True, 
+        max_length=40, default=None, null=True, blank=True, 
         help_text="(Optional) Starting part studio that need to be imported to user document with derived features. Leave blank if none is required."
     )
     init_mid = models.CharField(
@@ -601,7 +605,7 @@ class Question_MPPS(Question):
             # Check if necessary information is present 
             if (
                 self.publishable() and self.model_mass and 
-                (not self.starting_eid or self.mid)
+                (not self.starting_eid or self.init_mid)
             ): 
                 self.is_published = True 
         self.save() 
@@ -776,7 +780,7 @@ class Question_MPPS(Question):
         self.is_multi_step = False 
         # Get microversion IDs 
         if not self.ref_mid or (self.starting_eid and not self.init_mid): 
-            ele_info = get_elements(self, auth_token=get_admin_token())
+            ele_info = get_elements(self.did, self.vid, auth_token=get_admin_token())
             for item in ele_info: 
                 if item['id'] == self.eid: 
                     self.ref_mid = item['microversionId']
@@ -982,7 +986,7 @@ class Question_MSPS(Question):
     )
     starting_eid = models.CharField(
         "Starting element ID", 
-        max_length=40, default=None, null=True, 
+        max_length=40, default=None, null=True, blank=True, 
         help_text="(Optional) Starting part studio that need to be imported to user document with derived features. Leave blank if none is required."
     )
     init_mid = models.CharField(
@@ -1118,7 +1122,8 @@ class Question_MSPS(Question):
         # Get starting element's microversion ID 
         if self.starting_eid and not self.init_mid: 
             ele_info = get_elements(
-                self, auth_token=get_admin_token(), elementId=self.starting_eid
+                self.did, self.vid, 
+                auth_token=get_admin_token(), elementId=self.starting_eid
             )
             if ele_info: 
                 self.init_mid = ele_info[0]['microversionId'] 
@@ -1133,15 +1138,31 @@ class Question_Step_PS(models.Model):
         max_length=40, default=None, null=True, 
         help_text="Last microversion of the reference element's version"
     )
-    
-    class Meta: 
-        verbose_name = "MSPS Question Step"
+    os_drawing_eid = models.CharField(
+        "Onshape drawing element ID of the step", 
+        max_length=40, null=True
+    )
+    jpeg_drawing_eid = models.CharField(
+        "JPEG drawing element ID of the step", 
+        max_length=40, null=True
+    )
+    drawing_jpeg = models.TextField(null=True)
+    additional_instructions = models.TextField(
+        null=True, default=None, blank=True, 
+        help_text="(Opitonal) additional instructions for this step"
+    )
     
     # Properties for evaluation 
     model_mass = models.JSONField(default=list, null=True, help_text="Mass in kg")
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
     model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
     model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia") 
+    
+    class Meta: 
+        verbose_name = "MSPS Question Step"
+        
+    def __str__(self) -> str:
+        return str(self.question) + "_" + str(self.step_number)
 
     def evaluate(self, user: AuthUser) -> Union[str, bool]:
         """ Given the user submiting a model for evaluation, this function checks if the 
@@ -1223,10 +1244,41 @@ class Question_Step_PS(models.Model):
     def save(self, *args, **kwargs):
         if not self.mid: 
             ele_info = get_elements(
-                self, auth_token=get_admin_token(), elementId=self.eid
+                self.question.did, self.question.vid, 
+                auth_token=get_admin_token(), elementId=self.eid
             )
             if ele_info: 
                 self.mid = ele_info[0]["microversionId"]
+        if not self.drawing_jpeg: 
+            self.drawing_jpeg = get_jpeg_drawing(
+                self.question.did, self.question.vid, self.jpeg_drawing_eid, 
+                get_admin_token()
+            )
+        if not self.model_mass: 
+            mass_prop = get_mass_properties(
+                self.question.did, "v", self.question.vid, self.eid, 
+                self.question.etype, auth_token=get_admin_token(), 
+                massAsGroup=(not self.question.is_multi_part)
+            )
+            if mass_prop: 
+                if self.question.is_multi_part: 
+                    self.model_mass = [
+                        part['mass'][0] for part in mass_prop['bodies'].values()
+                    ]
+                    self.model_volume = [
+                        part['volume'][0] for part in mass_prop['bodies'].values()
+                    ]
+                    self.model_SA = [
+                        part['periphery'][0] for part in mass_prop['bodies'].values()
+                    ]
+                    self.model_inertia = [
+                        part['principalInertia'] for part in mass_prop['bodies'].values() 
+                    ]
+                else: 
+                    self.model_mass = mass_prop['bodies']['-all-']['mass'][0]
+                    self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
+                    self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
+                    self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
         return super().save(*args, **kwargs)
 
 
@@ -1280,12 +1332,12 @@ def get_thumbnail(question: _Q_TYPES, auth_token: str) -> str:
         return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAy0lEQVRIie2VXQ6CMBCEP7yDXkEjeA/x/icQgrQcAh9czKZ0qQgPRp1kk4ZZZvYnFPhjJi5ABfRvRgWUUwZLxIe4asEsMOhndmzhqbtZSdDExxh0EhacRBIt46V5oJDwEd4BuYQjscc90ATiJ8UfgFvEXPNNqotCKtEvF8HZS87wLAeOijeRTwhahsNoWmVi4pWRhLweqe4qCp1kLVUv3UX4VgtaX7IXbmsU0knuzuCz0SEwWIovvirqFTSrKbLkcZ8v+RecVyjyl3AHdAl3ObMLisAAAAAASUVORK5CYII="
 
 
-def get_jpeg_drawing(question: _Q_TYPES, auth_token: str) -> str: 
+def get_jpeg_drawing(did: str, vid: str, eid: str, auth_token: str) -> str: 
     """ Get the JPEG version of the drawing to be displayed when modelling 
     """
     response = requests.get(
         "https://cad.onshape.com/api/blobelements/d/{}/v/{}/e/{}".format(
-            question.did, question.vid, question.jpeg_drawing_eid
+            did, vid, eid
         ), 
         headers={
             "Content-Type": "application/json", 
@@ -1369,12 +1421,12 @@ def get_current_microversion(user: AuthUser) -> Union[str, None]:
         return None 
 
 
-def get_elements(question: _Q_TYPES, auth_token: str, elementId=None) -> Any: 
+def get_elements(did: str, vid: str, auth_token: str, elementId=None) -> Any: 
     """ Get all elements in a document's version and their information 
     """
     response = requests.get(
         "https://cad.onshape.com/api/documents/d/{}/v/{}/elements".format(
-            question.did, question.vid
+            did, vid
         ), 
         headers={
             "Content-Type": "application/json", 

@@ -44,7 +44,8 @@ class Questions_SPPS_Admin(admin.ModelAdmin):
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'ref_mid', 
         'model_mass', 'model_volume', 'model_SA', 'model_inertia', 
-        'is_published', 'completion_count', 'reviewer_completion_count'
+        'is_published', 'completion_count', 'reviewer_completion_count', 
+        'is_multi_step', 'is_collecting_data'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name', '__str__']
@@ -82,7 +83,8 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
         'ref_mid', 'model_mass', 'model_volume', 'model_SA', 'model_inertia', 
-        'is_published', 'completion_count', 'reviewer_completion_count'
+        'is_published', 'completion_count', 'reviewer_completion_count', 
+        'is_multi_step', 'is_collecting_data'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name', '__str__']
@@ -120,7 +122,8 @@ class Questions_ASMB_Admin(admin.ModelAdmin):
     ]
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'model_inertia', 
-        'is_published', 'completion_count', 'reviewer_completion_count'
+        'is_published', 'completion_count', 'reviewer_completion_count', 
+        'is_multi_step', 'is_collecting_data'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name', '__str__']
@@ -149,13 +152,14 @@ class Questions_ASMB_Admin(admin.ModelAdmin):
             item.save() 
 
 
-class PS_Steps(admin.TabularInline): 
+class PS_Steps(admin.StackedInline): 
     model = Question_Step_PS 
     extra = 1
     can_delete = True 
     readonly_fields = [
         'mid', 'model_mass', 'model_volume', 'model_SA', 'model_inertia'
     ]
+    exclude = ['drawing_jpeg']
 
 
 class Questions_MSPS_Admin(admin.ModelAdmin): 
@@ -166,7 +170,8 @@ class Questions_MSPS_Admin(admin.ModelAdmin):
     ]
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
-        'is_published', 'completion_count', 'reviewer_completion_count'
+        'is_published', 'completion_count', 'reviewer_completion_count', 
+        'is_multi_step', 'is_collecting_data'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name', '__str__']
@@ -182,7 +187,13 @@ class Questions_MSPS_Admin(admin.ModelAdmin):
         for item in queryset: 
             item.thumbnail = None 
             item.drawing_jpeg = None 
+            item.init_mid = None 
             item.save() 
+            for step in Question_Step_PS.objects.filter(question=item): 
+                step.mid = None 
+                step.drawing_jpeg = None 
+                step.model_mass = None 
+                step.save() 
     
     @admin.action(description="Start/Stop collecting data for selected questions")
     def change_collect_status(self, request: HttpRequest, queryset: QuerySet[Question_MSPS]) -> None: 
