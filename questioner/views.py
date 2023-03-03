@@ -17,9 +17,10 @@ from data_miner.views import collect_fail_data, collect_final_data
 Q_Type_Dict = {
     QuestionType.SINGLE_PART_PS: Question_SPPS, 
     QuestionType.MULTI_PART_PS: Question_MPPS, 
-    QuestionType.ASSEMBLY: Question_ASMB
+    QuestionType.ASSEMBLY: Question_ASMB, 
+    QuestionType.MULTI_STEP_PS: Question_MSPS
 }
-_Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS, Question_ASMB]
+_Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS, Question_ASMB, Question_MSPS]
 
 
 def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool: 
@@ -35,6 +36,9 @@ def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool:
     # has improvement over the best performance in history by a factor of MIN_IMPROV_REQ  
     MIN_IMPROVE_REQ = 0.2
 
+    if question.question_type == QuestionType.MULTI_STEP_PS: 
+        return False 
+    
     if (
         not question.is_published or 
         not question.is_collecting_data or 
@@ -87,9 +91,15 @@ def login(request: HttpRequest):
             if user.expires_at < timezone.now() + timedelta(hours=1): 
                 user.refresh_oauth_token() 
             # Redirect to modelling page 
+            args=[user.curr_question_type, user.curr_question_id, user.os_user_id, 0]
+            # Check if multi-step 
+            if Q_Type_Dict[user.curr_question_type].objects.get(
+                question_id=user.curr_question_id
+            ).is_multi_step: 
+                args.append(user.curr_step)
             return HttpResponseRedirect(reverse(
                 "questioner:modelling", 
-                args=[user.curr_question_type, user.curr_question_id, user.os_user_id, 0]
+                args=args
             )) 
     except ObjectDoesNotExist: 
         # Create a new user 
@@ -170,7 +180,7 @@ def index(request: HttpRequest, os_user_id: str):
     return render(request, "questioner/index.html", context=context)
 
 
-def model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, initiate: int): 
+def model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, initiate: int, step=1): 
     """ The view that the users see when working on a question. 
     It provides all necessary information and instructions for the 
     question. When the user finishes, they should be able to submit 
@@ -238,21 +248,32 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
         curr_user.curr_question_type = curr_que.question_type
         curr_user.curr_question_id = curr_que.question_id 
         curr_user.end_mid = None
+        curr_user.curr_step = 1
 
         # Get current microversion ID 
         curr_user.start_mid = get_current_microversion(curr_user)
         curr_user.save() 
-
+    
+    if step > 1: 
+        curr_user.curr_step = step 
+        curr_user.save() 
+        
+    context={
+        "user": curr_user, 
+        "question": curr_que
+    }
+    if curr_que.is_multi_step:
+        context["step"] = Question_Step_PS.objects.filter(
+            question=curr_que
+        ).get(step_number=step)
+    
     return render(
         request, "questioner/modelling.html", 
-        context={
-            "user": curr_user, 
-            "question": curr_que
-        }
+        context=context
     )
 
 
-def check_model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
+def check_model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, step=1): 
     """ When a user submits a model, API calls are made to check if the 
     model is dimensionally correct and placed in proper orientation. 
     If the model is correct, redirect to the complete page. 
@@ -267,11 +288,22 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
     if curr_user.expires_at < timezone.now() + timedelta(minutes=20): 
         curr_user.refresh_oauth_token() 
     
-    response = curr_que.evaluate(curr_user)
+    if curr_que.is_multi_step: 
+        response = curr_que.evaluate(curr_user, step)
+    else: 
+        response = curr_que.evaluate(curr_user)
 
     if not response: # API error 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
     elif type(response) is bool: # Submission is correct 
+        # Check if it's final step already for multi-step problems 
+        if curr_que.is_multi_step and step < curr_que.total_steps: 
+            return HttpResponseRedirect(reverse(
+                "questioner:modelling", args=[
+                    question_type, question_id, os_user_id, 0, step + 1
+                ]
+            ))
+            
         # Initiate data collection from data miner 
         if should_collect_data(curr_user, curr_que): 
             collect_final_data(curr_user, is_failure=False)
@@ -285,17 +317,24 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
         # Initiate failure attempt collection 
         if response[1] and should_collect_data(curr_user, curr_que): 
             collect_fail_data(curr_user)
+        
+        context={
+            "user": curr_user, 
+            "question": curr_que, 
+            "model_comparison": response[0] # failure message 
+        }
+        if curr_que.is_multi_step:
+            context["step"] = Question_Step_PS.objects.filter(
+                question=curr_que
+            ).get(step_number=step)
+        
         return render(
             request, "questioner/modelling.html", 
-            context={
-                "user": curr_user, 
-                "question": curr_que, 
-                "model_comparison": response[0] # failure message 
-            }
+            context=context
         )
 
 
-def solution(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
+def solution(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, step=1): 
     """ If a user gives up on the problem and wants to see the solution, 
     the reference model should be presented to the user in some forms 
     (defined differently in each of the question model).
@@ -311,7 +350,10 @@ def solution(request: HttpRequest, question_type: str, question_id: int, os_user
     curr_user.is_modelling = False 
     curr_user.save() 
     # Initiate any give-up actions if available 
-    instructions, do_collect_data = curr_que.give_up(curr_user)
+    if curr_que.is_multi_step: 
+        instructions, do_collect_data = curr_que.give_up(curr_user, step)
+    else: 
+        instructions, do_collect_data = curr_que.give_up(curr_user)
     # Record model's final state at the point of give-up 
     if do_collect_data and should_collect_data(curr_user, curr_que): 
         collect_final_data(curr_user, is_failure=True)

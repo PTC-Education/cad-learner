@@ -37,7 +37,7 @@ import os
 import requests
 import base64
 from datetime import datetime, timedelta
-from typing import Optional, Union, Tuple, Dict, Any
+from typing import Optional, Iterable, Union, Tuple, Dict, Any
 
 import numpy as np 
 import numpy.typing as npt 
@@ -57,6 +57,7 @@ class QuestionType(models.TextChoices):
     SINGLE_PART_PS = 'SPPS', gettext_lazy('Single-part Part Studio')
     MULTI_PART_PS = 'MPPS', gettext_lazy('Multi-part Part Studio')
     ASSEMBLY = 'ASMB', gettext_lazy('Assembly Mating')
+    MULTI_STEP_PS = 'MSPS', gettext_lazy('Multi-step Part Studio')
 
 
 class ElementType(models.TextChoices): 
@@ -86,6 +87,7 @@ class AuthUser(models.Model):
     last_start = models.DateTimeField(null=True) 
     curr_question_type = models.CharField(max_length=4, choices=QuestionType.choices, null=True)
     curr_question_id = models.CharField(max_length=400, null=True) 
+    curr_step = models.PositiveIntegerField(null=True) # for multi-step questions 
     start_mid = models.CharField(max_length=30, null=True) 
     end_mid = models.CharField(max_length=30, null=True) 
     add_field = models.JSONField(
@@ -100,7 +102,8 @@ class AuthUser(models.Model):
         str(question): List[Tuple[completion_datetime, time_taken, ...]]
     ]
 
-    For SPPS and MPPS: ... includes feature_cnt
+    For SPPS, MPPS, and ASMB: ... includes feature_cnt
+    For MSPS: ... includes feature_cnt
     """
 
     def refresh_oauth_token(self) -> None: 
@@ -204,6 +207,9 @@ class Question(models.Model):
         default=ElementType.ALL, 
         help_text="Allowed Onshape element type(s) that can start this question."
     )
+    is_multi_step = models.BooleanField(
+        default=False, help_text="Has multiple steps required for evaluation"
+    )
 
     # IDs to be linked 
     did = models.CharField( 
@@ -228,12 +234,12 @@ class Question(models.Model):
     )
     os_drawing_eid = models.CharField(
         "Onshape element ID of the main Onshape drawing", 
-        max_length=40, null=True, unique=True, 
+        max_length=40, null=True, 
         help_text="Element ID of the Onshape drawing that users can open in a new tab."
     ) 
     jpeg_drawing_eid = models.CharField(
         "Onshape element ID of a JPEG export of a drawing", 
-        max_length=40, null=True, unique=True, 
+        max_length=40, null=True, 
         help_text="Export a drawing as a JPEG to the questions document and input that element ID here. Portrait rather than landscape is preferred."
     ) 
 
@@ -302,13 +308,13 @@ class Question(models.Model):
         self.save()
         return None 
 
-    def initiate_actions(self, user: AuthUser) -> None: 
+    def initiate_actions(self, user: AuthUser) -> bool: 
         """ Any actions required to prepare the starting document for the user 
         E.g., import a starting part 
         """
-        return None 
+        return False 
     
-    def evaluate(self, user: AuthUser) -> bool: 
+    def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
         """ When a user submits their model for evaluation, specify the checks 
         required to evaluate correctness 
         - If evaluation passed, True is returned. 
@@ -318,7 +324,7 @@ class Question(models.Model):
         """
         return False 
 
-    def give_up(self, user: AuthUser) -> str: 
+    def give_up(self, user: AuthUser) -> Tuple[str, bool]: 
         """ After at least one failed attempt, the user is given the option to 
         give up, and some forms of solutions will be provided to the user along 
         with instructions, depending on the question type
@@ -358,7 +364,10 @@ class Question(models.Model):
         if not self.thumbnail: 
             self.thumbnail = get_thumbnail(self, get_admin_token()) 
         if not self.drawing_jpeg: 
-            self.drawing_jpeg = get_jpeg_drawing(self, get_admin_token())
+            self.drawing_jpeg = get_jpeg_drawing(
+                self.did, self.vid, self.jpeg_drawing_eid, 
+                get_admin_token()
+            )
         return super().save(*args, **kwargs)
 
 
@@ -427,62 +436,23 @@ class Question_SPPS(Question):
             return "Please remember to assign a material to your part.", False
 
         # Compare property values 
-        ref_model = [self.model_mass, self.model_volume, self.model_SA, self.model_inertia[0]]
-        user_model = [
-            mass_prop['bodies']['-all-']['mass'][0], 
-            mass_prop['bodies']['-all-']['volume'][0], 
-            mass_prop['bodies']['-all-']['periphery'][0],
-            mass_prop['bodies']['-all-']['principalInertia'][0]
-        ]
-        check_symbols = [] 
-        check_pass = True 
-        err_allowance = 0.005 
-        for i, item in enumerate(ref_model): 
-            # Check for accuracy 
-            if (
-                item * (1 - err_allowance) > user_model[i] or 
-                user_model[i] > item * (1 + err_allowance)
-            ): 
-                check_pass = False 
-                check_symbols.append("&#x2717;")
-            else: 
-                check_symbols.append("&#x2713;")
-            # Round for display 
-            if item < 0.1 or item > 99: 
-                ref_model[i] = '{:.2e}'.format(ref_model[i])
-                user_model[i] = '{:.2e}'.format(user_model[i])
-            else: 
-                ref_model[i] = round(ref_model[i], 3)
-                user_model[i] = round(user_model[i], 3)
-
-        if not check_pass: 
-            # Prepare error message 
-            fail_msg = '''
-            <table>
-                <tr>
-                    <th>Properties</th>
-                    <th>Expected Values</th>
-                    <th>Actual Values</th>
-                    <th>Check</th>
-                </tr>
-            '''
-            prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
-            for i, item in enumerate(prop_name): 
-                fail_msg += f'''
-                <tr>
-                    <td>{item}</td>
-                    <td>{ref_model[i]}</td>
-                    <td>{user_model[i]}</td>
-                    <td>{check_symbols[i]}</td>
-                </tr>
-                '''
+        eval_correct = single_part_geo_check( 
+            self, 
+            [
+                mass_prop['bodies']['-all-']['mass'][0], 
+                mass_prop['bodies']['-all-']['volume'][0], 
+                mass_prop['bodies']['-all-']['periphery'][0],
+                mass_prop['bodies']['-all-']['principalInertia'][0]
+            ]
+        )
+        if not type(eval_correct) is bool: 
             # Return failure messages 
             if not user.end_mid: # first failure 
                 user.end_mid = get_current_microversion(user)
                 user.save() 
-                return fail_msg + "</table>", True 
+                return eval_correct, True 
             else: 
-                return fail_msg + "</table>", False
+                return eval_correct, False
         else: 
             # Update database to record success 
             time_spent = (timezone.now() - user.last_start).total_seconds()
@@ -511,7 +481,7 @@ class Question_SPPS(Question):
             user.save() 
             return True 
 
-    def give_up(self, user:AuthUser) -> str: 
+    def give_up(self, user:AuthUser) -> Tuple[str, bool]: 
         """ If a user gives up on the problem and wants to see the solution, 
         a derived version of the reference part is first inserted into the 
         user's model, and a GIF instruction will be shown to teach the user 
@@ -524,12 +494,13 @@ class Question_SPPS(Question):
             "Derived Reference Part"
         )
         # Prepare instructions of using the solution 
-        msg = ""
         if not response: # insert derive fail 
-            msg += "<p>To view the solution, please visit the source document to view the reference part.</p>"
-            msg += "<p>Optional: you can also import the reference part into your working Part Studio using the derived feature. Following instructions below, you can line up the reference part to your own and visualize the difference.</p>"
+            msg = '''
+            <p>To view the solution, please visit the source document to view the reference part.</p>
+            <p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference parts to your own and visualize the difference.</p>
+            '''
         else: 
-            msg += "<p>The reference part is imported into your working Part Studio. You can follow instructions below to line up the two parts and visualize the difference.</p>"
+            msg = "<p>The reference parts are imported into your working Part Studio. You can follow instructions below to line up the reference parts to your own and visualize the difference.</p>"
         
         # Determine if data miner should collect data 
         if user.end_mid: # if at least one meaningful attempt evaluated before 
@@ -576,9 +547,12 @@ class Question_SPPS(Question):
         self.question_type = QuestionType.SINGLE_PART_PS
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
+        self.is_multi_step = False 
         # Get microversion IDs 
         if not self.ref_mid: 
-            ele_info = get_elements(self, auth_token=get_admin_token(), elementId=self.eid)
+            ele_info = get_elements(
+                self.did, self.vid, auth_token=get_admin_token(), elementId=self.eid
+            )
             if ele_info: 
                 self.ref_mid = ele_info[0]['microversionId']
         # Get reference geometries 
@@ -592,7 +566,6 @@ class Question_SPPS(Question):
                 self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
                 self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
                 self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
-            self.save() 
         return super().save(*args, **kwargs)
 
 
@@ -600,7 +573,7 @@ class Question_MPPS(Question):
     # Additional question information 
     starting_eid = models.CharField(
         "Starting element ID", 
-        max_length=40, default=None, null=True, 
+        max_length=40, default=None, null=True, blank=True, 
         help_text="(Optional) Starting part studio that need to be imported to user document with derived features. Leave blank if none is required."
     )
     init_mid = models.CharField(
@@ -633,7 +606,7 @@ class Question_MPPS(Question):
             # Check if necessary information is present 
             if (
                 self.publishable() and self.model_mass and 
-                (not self.starting_eid or self.mid)
+                (not self.starting_eid or self.init_mid)
             ): 
                 self.is_published = True 
         self.save() 
@@ -644,72 +617,28 @@ class Question_MPPS(Question):
         document with derived features when they start the question. 
         Return True if successful, otherwise False 
         """
+        if not self.starting_eid: # no initial import required 
+            return True 
         # Insert the all starting parts from the starting document to user's working 
         # document as one derived part 
         response = insert_ps_to_ps(
             user, self.did, self.vid, self.starting_eid, self.init_mid, 
             "Derived Starting Parts"
         )
-        
         if not response: 
             return False 
         else: 
             # Store the import derived feature ID for evaluation 
-            user.add_field = {
-                "MPPS_Derived_ID": response
-            }
+            user.add_field = {"Cached_Derived_ID": response}
             user.save()
             return True
-
-    def geo_check(self, user_prop, err_tol=0.005) -> Union[bool, str]: 
-        """
-        The model is considered to be correct if for every part in the reference model, 
-        there is one and only one part in the user's model with matching properties. 
-        Limitation: avoid having parts with properties that are too closed numerically. 
-        """
-        ref_prop = [
-            self.model_mass, self.model_volume, self.model_SA, 
-            [val[0] for val in self.model_inertia]
-        ]
-        ref_prop = sorted(
-            [
-                (ref_prop[0][i], ref_prop[1][i], ref_prop[2][i], ref_prop[3][i]) 
-                for i in range(len(ref_prop[0]))
-            ], 
-            key=lambda x : x[0]
-        )
-        user_prop = sorted(
-            [
-                (user_prop[0][i], user_prop[1][i], user_prop[2][i], user_prop[3][i]) 
-                for i in range(len(user_prop[0]))
-            ], 
-            key=lambda x : x[0]
-        )
-
-        eval_result = [] 
-        for i, props in enumerate(ref_prop): 
-            check_pass = True 
-            for j, prop in enumerate(props): 
-                if (
-                    prop * (1 + err_tol) < user_prop[i][j] or 
-                    prop * (1 - err_tol) > user_prop[i][j]
-                ): 
-                    check_pass = False 
-            eval_result.append(check_pass)
-        
-        if not False in eval_result: 
-            return True 
-        else: 
-            return "You have modelled {} out of {} parts correctly.".format(
-                eval_result.count(True), len(eval_result)
-            )
 
     def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
         """ Given the user submiting a model for evaluation, this function checks if the 
         user model matches the reference model. 
         - If evaluation passed, True is returned. 
         - If evaluation cannot proceed due to API errors, False is returned. 
-        - If evaluation found mismatch, a table showing the difference is returned to 
+        - If evaluation found mismatch, error message is returned to 
           be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
         """
         # Get info from user model 
@@ -736,12 +665,13 @@ class Question_MPPS(Question):
         for fea in feature_list['features']: 
             if (
                 fea['featureType'] == 'importDerived' and 
-                (not self.starting_eid or fea['featureId'] != user.add_field['MPPS_Derived_ID'])
+                (not self.starting_eid or fea['featureId'] != user.add_field['Cached_Derived_ID'])
             ): 
                 return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ...", False 
         
         # Compare property values 
-        eval_correct = self.geo_check(
+        eval_correct = multi_part_geo_check(
+            self, 
             [
                 [prt['mass'][0] for prt in mass_prop['bodies'].values()], 
                 [prt['volume'][0] for prt in mass_prop['bodies'].values()], 
@@ -784,10 +714,10 @@ class Question_MPPS(Question):
             user.save() 
             return True 
 
-    def give_up(self, user: AuthUser) -> str: 
+    def give_up(self, user: AuthUser) -> Tuple[str, bool]: 
         """ After at least one failed attempt, the user is given the option to 
-        give up, and some forms of solutions will be provided to the user along 
-        with instructions, depending on the question type
+        give up, and the reference parts will be derived imported to the user's 
+        working document along with instructions. 
         Returns: Tuple[message, ?collect_data]
         """
         temp_mid = get_current_microversion(user)
@@ -796,12 +726,13 @@ class Question_MPPS(Question):
             "Derived Reference Parts"
         )
         # Prepare instructions of using the solution 
-        msg = ""
         if not response: # insert derive fail 
-            msg += "<p>To view the solution, please visit the source document to view the reference part.</p>"
-            msg += "<p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference parts to your own and visualize the difference.</p>"
+            msg = '''
+            <p>To view the solution, please visit the source document to view the reference part.</p>
+            <p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference parts to your own and visualize the difference.</p>
+            '''
         else: 
-            msg += "<p>The reference parts are imported into your working Part Studio. You can follow instructions below to line up the reference parts to your own and visualize the difference.</p>"
+            msg = "<p>The reference parts are imported into your working Part Studio. You can follow instructions below to line up the reference parts to your own and visualize the difference.</p>"
         
         # Determine if data miner should collect data 
         if user.end_mid: # if at least one meaningful attempt evaluated before 
@@ -847,9 +778,10 @@ class Question_MPPS(Question):
         self.question_type = QuestionType.MULTI_PART_PS
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
+        self.is_multi_step = False 
         # Get microversion IDs 
         if not self.ref_mid or (self.starting_eid and not self.init_mid): 
-            ele_info = get_elements(self, auth_token=get_admin_token())
+            ele_info = get_elements(self.did, self.vid, auth_token=get_admin_token())
             for item in ele_info: 
                 if item['id'] == self.eid: 
                     self.ref_mid = item['microversionId']
@@ -982,7 +914,7 @@ class Question_ASMB(Question):
             user.save() 
             return True 
 
-    def give_up(self, user:AuthUser) -> str: 
+    def give_up(self, user:AuthUser) -> Tuple[str, bool]: 
         """ The user gives up on the problem, no solutions to be provided yet 
         Returns: Tuple[message, ?collect_data]
         """
@@ -1034,6 +966,7 @@ class Question_ASMB(Question):
         self.question_type = QuestionType.ASSEMBLY
         self.etype = ElementType.ASSEMBLY
         self.allowed_etype = ElementType.ASSEMBLY
+        self.is_multi_step = False 
         # Get reference geometries 
         if not self.model_inertia: 
             mass_prop = get_mass_properties(
@@ -1046,8 +979,347 @@ class Question_ASMB(Question):
         return super().save(*args, **kwargs)
 
 
+class Question_MSPS(Question): 
+    # Additional question information 
+    is_multi_part = models.BooleanField(
+        default=False, 
+        help_text="Does this question contains multiple parts in one Part Studio?"
+    )
+    starting_eid = models.CharField(
+        "Starting element ID", 
+        max_length=40, default=None, null=True, blank=True, 
+        help_text="(Optional) Starting part studio that need to be imported to user document with derived features. Leave blank if none is required."
+    )
+    init_mid = models.CharField(
+        max_length=40, default=None, null=True, 
+        help_text="Last microversion of the starting element's version"
+    )
+    total_steps = models.IntegerField(
+        "Number of steps", default=0
+    )
+
+    # Additional analytics to be collected and presented 
+    completion_feature_cnt = models.JSONField(
+        default=list, help_text="List of feature counts required by users in history"
+    )
+
+    class Meta: 
+        verbose_name = "Multi-step Part Studio Question"
+
+    def publish(self) -> None:
+        if self.is_published: 
+            self.is_published = False 
+        else: 
+            # Check if necessary information is present 
+            actual_steps = len(Question_Step_PS.objects.filter(question=self))
+            if (
+                self.publishable() and actual_steps > 0 and 
+                (not self.starting_eid or self.init_mid)  
+            ): 
+                self.is_published = True 
+                if actual_steps != self.total_steps: 
+                    self.total_steps = actual_steps
+        self.save() 
+        return None 
+
+    def initiate_actions(self, user: AuthUser) -> bool:
+        """ Initiating actions are required to import starting parts to the user's 
+        document with derived features when they start the question. 
+        Return True if successful, otherwise False 
+        """
+        if not self.starting_eid: # no initial import required 
+            return True 
+        # Insert the all starting parts from the starting document to user's working 
+        # document as one derived part 
+        response = insert_ps_to_ps(
+            user, self.did, self.vid, self.starting_eid, self.init_mid, 
+            "Derived Starting Parts"
+        )
+        if not response: 
+            return False 
+        else: 
+            # Store the import derived feature ID for evaluation 
+            user.add_field = {"Cached_Derived_ID": response}
+            user.save()
+            return True
+
+    def evaluate(self, user: AuthUser, step: int) -> Union[Tuple[str, bool], bool, int]:
+        """ Given the user submiting a model for evaluation, this function checks if the 
+        user model matches the reference model. 
+        - If evaluation passed, True is returned. 
+        - If evaluation cannot proceed due to API errors, False is returned. 
+        - If evaluation found mismatch, a table showing the difference is returned to 
+          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
+        """
+        curr_step = Question_Step_PS.objects.filter(question=self).get(step_number=step)
+        response = curr_step.evaluate(user)
+        if not response: # API call failed 
+            return False 
+        elif type(response) is bool: # pass the evaluation 
+            return True 
+        else: # failed the evaluation  
+            if not user.end_mid: # first failure 
+                user.end_mid = get_current_microversion(user)
+                user.save() 
+            return response, False 
+        
+
+    def give_up(self, user: AuthUser, step: int) -> Tuple[str, bool]:
+        """ After at least one failed attempt, the user is given the option to 
+        give up, and reference part(s) will be derived imported to the user's 
+        working document along with instructions
+        Returns: Tuple[message, ?collect_data]
+        """
+        curr_step = Question_Step_PS.objects.filter(question=self).get(step_number=step)
+        temp_mid = get_current_microversion(user)
+        response = curr_step.give_up(user)
+        
+        # Prepare instructions of using the solution 
+        if not response: # insert derive fail 
+            msg = '''
+            <p>To view the solution, please visit the source document to view the reference part.</p>
+            <p>Optional: you can also import the reference part(s) into your working Part Studio using the derived feature. Following instructions below, you can line up the reference parts to your own and visualize the difference.</p>
+            '''
+        else: 
+            msg = "<p>The reference parts are imported into your working Part Studio. You can follow instructions below to line up the reference parts to your own and visualize the difference.</p>"
+            
+        # Record basic data for database stats 
+        if user.end_mid: # at least one meaningful attempt evaluated before 
+            time_spent = (timezone.now() - user.last_start).total_seconds()
+            if str(self) in user.failure_history: 
+                user.failure_history[str(self)].append((
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                ))
+            else: 
+                user.failure_history[str(self)] = [(
+                    datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                    time_spent
+                )]
+            user.end_mid = temp_mid
+            user.save() 
+        return msg, False 
+
+    def show_result(self, user: AuthUser, show_best=False) -> str:
+        """ Other than the default time spent comparison, also plot the 
+        distribution of features used to complete the question. 
+        """
+        if show_best: 
+            my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
+        else: 
+            my_fea_cnt = user.completed_history[str(self)][-1][2] 
+        output = "<p>You completed the model {} with {} features.</p>".format(
+            self.question_name, int(my_fea_cnt)
+        )
+        # Plot a histogram of feature counts 
+        if len(self.completion_feature_cnt) >= 10: 
+            output += """<img src="{}" alt="stats_time"/>""".format(
+                plot_dist(
+                    self.completion_feature_cnt, my_fea_cnt, 
+                    x_label="Number of Features Used to Complete This Question"
+                )
+            )
+        return super().show_result(user, show_best=show_best) + output
+
+    def save(self, *args, **kwargs):
+        self.question_type = QuestionType.MULTI_STEP_PS
+        self.etype = ElementType.PARTSTUDIO
+        self.allowed_etype = ElementType.PARTSTUDIO
+        self.is_multi_step = True 
+        self.total_steps = len(Question_Step_PS.objects.filter(question=self))
+        # Get starting element's microversion ID 
+        if self.starting_eid and not self.init_mid: 
+            ele_info = get_elements(
+                self.did, self.vid, 
+                auth_token=get_admin_token(), elementId=self.starting_eid
+            )
+            if ele_info: 
+                self.init_mid = ele_info[0]['microversionId'] 
+        return super().save(*args, **kwargs)
+
+    
+class Question_Step_PS(models.Model): 
+    question = models.ForeignKey(Question_MSPS, on_delete=models.CASCADE)
+    step_number = models.PositiveIntegerField(default=1)
+    eid = models.CharField("Onshape element ID", max_length=40, default=None)
+    mid = models.CharField(
+        max_length=40, default=None, null=True, 
+        help_text="Last microversion of the reference element's version"
+    )
+    os_drawing_eid = models.CharField(
+        "Onshape drawing element ID of the step", 
+        max_length=40, null=True
+    )
+    jpeg_drawing_eid = models.CharField(
+        "JPEG drawing element ID of the step", 
+        max_length=40, null=True
+    )
+    drawing_jpeg = models.TextField(null=True)
+    additional_instructions = models.TextField(
+        null=True, default=None, blank=True, 
+        help_text="(Opitonal) additional instructions for this step"
+    )
+    
+    # Properties for evaluation 
+    model_mass = models.JSONField(default=list, null=True, help_text="Mass in kg")
+    model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
+    model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
+    model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia") 
+    
+    class Meta: 
+        verbose_name = "MSPS Question Step"
+        
+    def __str__(self) -> str:
+        return str(self.question) + "_" + str(self.step_number)
+
+    def evaluate(self, user: AuthUser) -> Union[str, bool]:
+        """ Given the user submiting a model for evaluation, this function checks if the 
+        user model matches the reference model. 
+        - If evaluation passed, True is returned. 
+        - If evaluation cannot proceed due to API errors, False is returned. 
+        - If evaluation found mismatch, error message is returned to 
+          be displayed in the HTML page. 
+        """
+         # Get info from user model 
+        feature_list = get_feature_list(user)
+        mass_prop = get_mass_properties(
+            user.did, "w", user.wid, user.eid, user.etype, 
+            massAsGroup=bool(not self.question.is_multi_part), 
+            auth_token=user.access_token
+        )
+        if not feature_list or not mass_prop: # API call failed 
+            return False 
+
+        # Check if there are derived features 
+        for fea in feature_list['features']: 
+            if (
+                fea['featureType'] == 'importDerived' and 
+                (not self.question.starting_eid or fea['featureId'] != user.add_field['Cached_Derived_ID'])
+            ): 
+                return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ..." 
+        
+        # Check if submitted parts are okay with basic metrics 
+        if len(mass_prop['bodies']) == 0: 
+            return "No parts found - please model the part then try re-submitting." 
+        elif not self.question.is_multi_part and not mass_prop['bodies']['-all-']['hasMass']: 
+            return "Please remember to assign a material to your part."
+        elif (
+            self.question.is_multi_part and 
+            len(mass_prop['bodies']) != len(self.model_mass)
+        ): # Check num of parts 
+            return "The number of parts in your Part Studio does not match the reference Part Studio." 
+        
+        # Compare property values 
+        if self.question.is_multi_part: 
+            eval_correct = multi_part_geo_check(
+                self, 
+                [
+                    [prt['mass'][0] for prt in mass_prop['bodies'].values()], 
+                    [prt['volume'][0] for prt in mass_prop['bodies'].values()], 
+                    [prt['periphery'][0] for prt in mass_prop['bodies'].values()], 
+                    [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()]
+                ]
+            )
+        else: 
+            eval_correct = single_part_geo_check(
+                self, 
+                [
+                    mass_prop['bodies']['-all-']['mass'][0], 
+                    mass_prop['bodies']['-all-']['volume'][0], 
+                    mass_prop['bodies']['-all-']['periphery'][0],
+                    mass_prop['bodies']['-all-']['principalInertia'][0]
+                ]
+            )
+        if type(eval_correct) is bool: # geo check passed 
+            if self.step_number == self.question.total_steps: # final step 
+                # Update database to record success 
+                time_spent = (timezone.now() - user.last_start).total_seconds()
+                feature_cnt = len(feature_list['features'])
+                end_mid = get_current_microversion(user)
+
+                self.question.completion_count += 1
+                self.question.completion_time.append(time_spent)
+                self.question.completion_feature_cnt.append(feature_cnt)
+                if user.is_reviewer: 
+                    self.question.reviewer_completion_count += 1
+                self.question.save()
+
+                user.end_mid = end_mid
+                user.is_modelling = False 
+                if str(self.question) in user.completed_history: 
+                    user.completed_history[str(self.question)].append((
+                        datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                        time_spent, feature_cnt
+                    ))
+                else: 
+                    user.completed_history[str(self.question)] = [(
+                        datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                        time_spent, feature_cnt
+                    )]
+                user.save() 
+            return True 
+        else: 
+            return eval_correct 
+
+    def give_up(self, user: AuthUser) -> bool: 
+        """ When give up, import the derived reference part of the step to the 
+        user's working document 
+        Return True if successful, False otherwise 
+        """
+        response = insert_ps_to_ps(
+            user, self.question.did, self.question.vid, self.eid, self.mid, 
+            "Derived Reference Part"
+        )
+        if response: 
+            return True 
+        else: 
+            return False 
+        
+    def save(self, *args, **kwargs):
+        if not self.mid: 
+            ele_info = get_elements(
+                self.question.did, self.question.vid, 
+                auth_token=get_admin_token(), elementId=self.eid
+            )
+            if ele_info: 
+                self.mid = ele_info[0]["microversionId"]
+        if not self.drawing_jpeg: 
+            self.drawing_jpeg = get_jpeg_drawing(
+                self.question.did, self.question.vid, self.jpeg_drawing_eid, 
+                get_admin_token()
+            )
+        if not self.model_mass: 
+            mass_prop = get_mass_properties(
+                self.question.did, "v", self.question.vid, self.eid, 
+                self.question.etype, auth_token=get_admin_token(), 
+                massAsGroup=(not self.question.is_multi_part)
+            )
+            if mass_prop: 
+                if self.question.is_multi_part: 
+                    self.model_mass = [
+                        part['mass'][0] for part in mass_prop['bodies'].values()
+                    ]
+                    self.model_volume = [
+                        part['volume'][0] for part in mass_prop['bodies'].values()
+                    ]
+                    self.model_SA = [
+                        part['periphery'][0] for part in mass_prop['bodies'].values()
+                    ]
+                    self.model_inertia = [
+                        part['principalInertia'] for part in mass_prop['bodies'].values() 
+                    ]
+                else: 
+                    self.model_mass = mass_prop['bodies']['-all-']['mass'][0]
+                    self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
+                    self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
+                    self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
+        return super().save(*args, **kwargs)
+
+
 #################### Helper API calls ####################
-_Q_TYPES = Union[Question_SPPS, Question_MPPS] # for function argument hints 
+_Q_TYPES = Union[
+    Question_SPPS, Question_MPPS, Question_ASMB, Question_MSPS
+] # for function argument hints 
 
 
 def get_admin_token() -> str: 
@@ -1094,12 +1366,12 @@ def get_thumbnail(question: _Q_TYPES, auth_token: str) -> str:
         return "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAABmJLR0QA/wD/AP+gvaeTAAAAy0lEQVRIie2VXQ6CMBCEP7yDXkEjeA/x/icQgrQcAh9czKZ0qQgPRp1kk4ZZZvYnFPhjJi5ABfRvRgWUUwZLxIe4asEsMOhndmzhqbtZSdDExxh0EhacRBIt46V5oJDwEd4BuYQjscc90ATiJ8UfgFvEXPNNqotCKtEvF8HZS87wLAeOijeRTwhahsNoWmVi4pWRhLweqe4qCp1kLVUv3UX4VgtaX7IXbmsU0knuzuCz0SEwWIovvirqFTSrKbLkcZ8v+RecVyjyl3AHdAl3ObMLisAAAAAASUVORK5CYII="
 
 
-def get_jpeg_drawing(question: _Q_TYPES, auth_token: str) -> str: 
+def get_jpeg_drawing(did: str, vid: str, eid: str, auth_token: str) -> str: 
     """ Get the JPEG version of the drawing to be displayed when modelling 
     """
     response = requests.get(
         "https://cad.onshape.com/api/blobelements/d/{}/v/{}/e/{}".format(
-            question.did, question.vid, question.jpeg_drawing_eid
+            did, vid, eid
         ), 
         headers={
             "Content-Type": "application/json", 
@@ -1183,12 +1455,12 @@ def get_current_microversion(user: AuthUser) -> Union[str, None]:
         return None 
 
 
-def get_elements(question: _Q_TYPES, auth_token: str, elementId=None) -> Any: 
+def get_elements(did: str, vid: str, auth_token: str, elementId=None) -> Any: 
     """ Get all elements in a document's version and their information 
     """
     response = requests.get(
         "https://cad.onshape.com/api/documents/d/{}/v/{}/elements".format(
-            question.did, question.vid
+            did, vid
         ), 
         headers={
             "Content-Type": "application/json", 
@@ -1358,3 +1630,106 @@ def plot_dist(
     img_output.seek(0)
     img_data = base64.b64encode(img_output.read())
     return "data:image/png;base64," + str(img_data)[2:-1]
+
+
+def single_part_geo_check(
+    question: Union[Question_SPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol=0.005
+) -> Union[bool, str]: 
+    """ The model is considered to be correct if all properties of the user's model 
+    falls within the properties of the reference model ± err_tol. 
+    Returns True if check is passed; otherwise, an HTML table of comparison is returned 
+    """
+    ref_prop = [
+        question.model_mass, question.model_volume, question.model_SA, 
+        question.model_inertia[0]
+    ]
+    check_symbols = [] 
+    check_pass = True 
+    
+    for i, item in enumerate(ref_prop): 
+        # Check for accuracy 
+        if (
+            item * (1 - err_tol) > user_prop[i] or 
+            user_prop[i] > item * (1 + err_tol)
+        ): 
+            check_pass = False 
+            check_symbols.append("&#x2717;")
+        else: 
+            check_symbols.append("&#x2713;")
+        # Round for display 
+        if item < 0.1 or item > 99: 
+            ref_prop[i] = '{:.2e}'.format(ref_prop[i])
+            user_prop[i] = '{:.2e}'.format(user_prop[i])
+        else: 
+            ref_prop[i] = round(ref_prop[i], 3)
+            user_prop[i] = round(user_prop[i], 3)
+    
+    if check_pass: 
+        return True 
+    else: 
+        fail_msg = '''
+        <table>
+            <tr>
+                <th>Properties</th>
+                <th>Expected Values</th>
+                <th>Actual Values</th>
+                <th>Check</th>
+            </tr>
+        '''
+        prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
+        for i, item in enumerate(prop_name): 
+            fail_msg += f'''
+            <tr>
+                <td>{item}</td>
+                <td>{ref_prop[i]}</td>
+                <td>{user_prop[i]}</td>
+                <td>{check_symbols[i]}</td>
+            </tr>
+            '''
+        return fail_msg + "</table>"
+
+
+def multi_part_geo_check(
+    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], 
+    err_tol=0.005
+) -> Union[bool, str]: 
+        """ The model is considered to be correct if for every part in the reference model, 
+        there is one and only one part in the user's model with matching properties. 
+        Limitation: avoid having parts with properties that are too closed numerically. 
+        """
+        ref_prop = [
+            question.model_mass, question.model_volume, question.model_SA, 
+            [val[0] for val in question.model_inertia]
+        ]
+        ref_prop = sorted(
+            [
+                (ref_prop[0][i], ref_prop[1][i], ref_prop[2][i], ref_prop[3][i]) 
+                for i in range(len(ref_prop[0]))
+            ], 
+            key=lambda x : x[0]
+        )
+        user_prop = sorted(
+            [
+                (user_prop[0][i], user_prop[1][i], user_prop[2][i], user_prop[3][i]) 
+                for i in range(len(user_prop[0]))
+            ], 
+            key=lambda x : x[0]
+        )
+
+        eval_result = [] 
+        for i, props in enumerate(ref_prop): 
+            check_pass = True 
+            for j, prop in enumerate(props): 
+                if (
+                    prop * (1 + err_tol) < user_prop[i][j] or 
+                    prop * (1 - err_tol) > user_prop[i][j]
+                ): 
+                    check_pass = False 
+            eval_result.append(check_pass)
+        
+        if not False in eval_result: 
+            return True 
+        else: 
+            return "You have modelled {} out of {} parts correctly.".format(
+                eval_result.count(True), len(eval_result)
+            )
