@@ -22,7 +22,7 @@
             <h3>Instructions:</h3>
             <ol>
                 <li>Launch this app in an empty Onshape tab</li>
-                <li>Pick a question of your choice from the list below</li>
+                <li>Pick a challenge of your choice from the list below</li>
                 <li>You have up to <strong>one hour</strong> to complete the challenge</li>
                 <li>Click "Submit" at the top of the app when you finish</li>
             </ol>
@@ -76,7 +76,7 @@
                     <div class="panel">
                         <ul>
                             <!-- Question type -->
-                            <li>Question type: {{ question.get_question_type_display }}</li>
+                            <li>Challenge type: {{ question.get_question_type_display }}</li>
                             <!-- Update difficulty_filter.js if changing <li> here -->
                             {% if question.difficulty == "EA" %}
                                 <li class="difficulty">Difficulty: Easy</li>
@@ -108,7 +108,7 @@
                         <!-- Button to start the question -->
                         {% if user.etype == question.allowed_etype or question.allowed_etype == "all" %}
                             {% if question|stringformat:"s" in user.completed_history.keys %}
-                                <p>You have completed this question before ...</p>
+                                <p>You have completed this challenge before ...</p>
                                 <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id 1 %}">
                                     <input type="submit" value="Retry this question"/>
                                 </form>
@@ -122,7 +122,7 @@
                                 </form>
                             {% endif %}
                         {% else %}
-                                <p><strong>Note:</strong> You cannot start this question in a(n) {{ user.get_etype_display }}. Please relaunch the app in a(n) {{ question.get_allowed_etype_display }} if you would like to attempt this question.</p>
+                                <p><strong>Note:</strong> You cannot start this challenge in a(n) {{ user.get_etype_display }}. Please relaunch the app in a(n) {{ question.get_allowed_etype_display }} if you would like to attempt this challenge.</p>
                         {% endif %}
                     </div>
                 </div>

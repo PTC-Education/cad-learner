@@ -87,6 +87,7 @@ class AuthUser(models.Model):
     last_start = models.DateTimeField(null=True) 
     curr_question_type = models.CharField(max_length=4, choices=QuestionType.choices, null=True)
     curr_question_id = models.CharField(max_length=400, null=True) 
+    curr_step = models.PositiveIntegerField(null=True) # for multi-step questions 
     start_mid = models.CharField(max_length=30, null=True) 
     end_mid = models.CharField(max_length=30, null=True) 
     add_field = models.JSONField(
@@ -233,12 +234,12 @@ class Question(models.Model):
     )
     os_drawing_eid = models.CharField(
         "Onshape element ID of the main Onshape drawing", 
-        max_length=40, null=True, unique=True, 
+        max_length=40, null=True, 
         help_text="Element ID of the Onshape drawing that users can open in a new tab."
     ) 
     jpeg_drawing_eid = models.CharField(
         "Onshape element ID of a JPEG export of a drawing", 
-        max_length=40, null=True, unique=True, 
+        max_length=40, null=True, 
         help_text="Export a drawing as a JPEG to the questions document and input that element ID here. Portrait rather than landscape is preferred."
     ) 
 
@@ -993,6 +994,9 @@ class Question_MSPS(Question):
         max_length=40, default=None, null=True, 
         help_text="Last microversion of the starting element's version"
     )
+    total_steps = models.IntegerField(
+        "Number of steps", default=0
+    )
 
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
@@ -1007,11 +1011,14 @@ class Question_MSPS(Question):
             self.is_published = False 
         else: 
             # Check if necessary information is present 
+            actual_steps = len(Question_Step_PS.objects.filter(question=self))
             if (
-                self.publishable() and (not self.starting_eid or self.init_mid) and 
-                len(Question_Step_PS.objects.filter(question=self)) > 0
+                self.publishable() and actual_steps > 0 and 
+                (not self.starting_eid or self.init_mid)  
             ): 
                 self.is_published = True 
+                if actual_steps != self.total_steps: 
+                    self.total_steps = actual_steps
         self.save() 
         return None 
 
@@ -1044,16 +1051,16 @@ class Question_MSPS(Question):
         - If evaluation found mismatch, a table showing the difference is returned to 
           be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
         """
-        curr_step = Question_Step_PS.objects.filter(question=self).get(step_num=step)
+        curr_step = Question_Step_PS.objects.filter(question=self).get(step_number=step)
         response = curr_step.evaluate(user)
         if not response: # API call failed 
             return False 
         elif type(response) is bool: # pass the evaluation 
-            if step == len(Question_Step_PS.objects.filter(question=self)): # all steps completed 
-                return True 
-            else: # continue with next step 
-                return step + 1
+            return True 
         else: # failed the evaluation  
+            if not user.end_mid: # first failure 
+                user.end_mid = get_current_microversion(user)
+                user.save() 
             return response, False 
         
 
@@ -1063,7 +1070,7 @@ class Question_MSPS(Question):
         working document along with instructions
         Returns: Tuple[message, ?collect_data]
         """
-        curr_step = Question_Step_PS.objects.filter(question=self).get(step_num=step)
+        curr_step = Question_Step_PS.objects.filter(question=self).get(step_number=step)
         temp_mid = get_current_microversion(user)
         response = curr_step.give_up(user)
         
@@ -1119,6 +1126,7 @@ class Question_MSPS(Question):
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
         self.is_multi_step = True 
+        self.total_steps = len(Question_Step_PS.objects.filter(question=self))
         # Get starting element's microversion ID 
         if self.starting_eid and not self.init_mid: 
             ele_info = get_elements(
@@ -1193,10 +1201,10 @@ class Question_Step_PS(models.Model):
         # Check if submitted parts are okay with basic metrics 
         if len(mass_prop['bodies']) == 0: 
             return "No parts found - please model the part then try re-submitting." 
-        elif self.question.is_multi_part and not mass_prop['bodies']['-all-']['hasMass']: 
+        elif not self.question.is_multi_part and not mass_prop['bodies']['-all-']['hasMass']: 
             return "Please remember to assign a material to your part."
         elif (
-            not self.question.is_multi_part and 
+            self.question.is_multi_part and 
             len(mass_prop['bodies']) != len(self.model_mass)
         ): # Check num of parts 
             return "The number of parts in your Part Studio does not match the reference Part Studio." 
@@ -1223,6 +1231,32 @@ class Question_Step_PS(models.Model):
                 ]
             )
         if type(eval_correct) is bool: # geo check passed 
+            if self.step_number == self.question.total_steps: # final step 
+                # Update database to record success 
+                time_spent = (timezone.now() - user.last_start).total_seconds()
+                feature_cnt = len(feature_list['features'])
+                end_mid = get_current_microversion(user)
+
+                self.question.completion_count += 1
+                self.question.completion_time.append(time_spent)
+                self.question.completion_feature_cnt.append(feature_cnt)
+                if user.is_reviewer: 
+                    self.question.reviewer_completion_count += 1
+                self.question.save()
+
+                user.end_mid = end_mid
+                user.is_modelling = False 
+                if str(self.question) in user.completed_history: 
+                    user.completed_history[str(self.question)].append((
+                        datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                        time_spent, feature_cnt
+                    ))
+                else: 
+                    user.completed_history[str(self.question)] = [(
+                        datetime.strftime(timezone.now(), '%Y-%m-%d %H:%M:%S'), 
+                        time_spent, feature_cnt
+                    )]
+                user.save() 
             return True 
         else: 
             return eval_correct 

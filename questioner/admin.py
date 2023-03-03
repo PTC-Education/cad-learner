@@ -171,7 +171,7 @@ class Questions_MSPS_Admin(admin.ModelAdmin):
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
         'is_published', 'completion_count', 'reviewer_completion_count', 
-        'is_multi_step', 'is_collecting_data'
+        'is_multi_step', 'is_collecting_data', 'total_steps'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
     search_fields = ['question_name', '__str__']

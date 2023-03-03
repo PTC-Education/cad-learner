@@ -13,18 +13,43 @@
                 <li><a href="{% url 'questioner:index' user.os_user_id %}" onclick="return home_confirm_alert()" title="Return to list of challenges - you will need to restart this challenge">Back to Home</a></li>
                 <!-- Submit/Re-submit for evaluation -->
                 {% if model_comparison or user.end_mid %} <!-- Failed at least once -->
-                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference again">Re-submit</a></li>
-                    <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}" onclick="return give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
+                    {% if question.is_multi_step %}
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id step.step_number %}" title="Check your model against the reference again">Re-submit</a></li>
+                        <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id step.step_number %}" onclick="return give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
+                    {% else %}
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference again">Re-submit</a></li>
+                        <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}" onclick="return give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
+                    {% endif %}
                 {% else %}
-                    <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference">Submit</a></li>
+                    {% if question.is_multi_step %}
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id step.step_number %}" title="Check your model against the reference">Submit</a></li>
+                    {% else %}
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference">Submit</a></li>
+                    {% endif %}
                 {% endif %}
                 <!-- View CAD drawing in new tab -->
-                <li><a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer" title="Open the document with the reference moodel and drawings in a new tab">Open Reference</a></li>
+                {% if question.is_multi_step %}
+                    <li><a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ step.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer" title="Open the document with the reference moodel and drawings in a new tab">Open Reference</a></li>
+                {% else %}
+                    <li><a href="https://cad.onshape.com/documents/{{ question.did }}/v/{{ question.vid }}/e/{{ question.os_drawing_eid }}/" target="_blank" rel="noopener noreferrer" title="Open the document with the reference moodel and drawings in a new tab">Open Reference</a></li>
+                {% endif %}
             </ul>
         </div>
         <div id="main">
-            <!-- Print out model comparison table if inaccurate -->
             <div id="feedback">
+                <!-- Print step info if question is multi-step -->
+                {% if question.is_multi_step %}
+                    <h3>Step {{ step.step_number }} of {{ question.total_steps }}</h3>
+                    <p><strong>Tips: </strong>you can preview instructions for later steps in the reference document.</p>
+                {% endif %}
+                <!-- Print additional instructions if any-->
+                {% if question.additional_instructions %}
+                    <p>{{ question.additional_instructions }}</p>
+                {% endif %}
+                {% if question.is_multi_step and step.additional_instructions %}
+                    <p>{{ step.additional_instructions }}</p>
+                {% endif %}
+                <!-- Print out model comparison table if inaccurate -->
                 {% if model_comparison %}
                     {{ model_comparison|safe }}
                     <br /><br />
@@ -32,7 +57,11 @@
             </div>
             <!-- Show drawing in right panel -->
             <div>
-                <img src="{{ question.drawing_jpeg }}" width="100%"/>
+                {% if question.is_multi_step %}
+                    <img src="{{ step.drawing_jpeg }}" width="100%"/> 
+                {% else %}
+                    <img src="{{ question.drawing_jpeg }}" width="100%"/>
+                {% endif %}
             </div>
         </div>
     </body>
