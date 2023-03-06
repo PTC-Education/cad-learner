@@ -274,7 +274,7 @@ class Question(models.Model):
     )
     # This boolean indicates if design data should be collected for this quesiton
     is_collecting_data = models.BooleanField(
-        default=True, help_text="User design data is only collected when this is set to be True"
+        default=False, help_text="User design data is only collected when this is set to be True"
     )
 
     def __str__(self) -> str:
@@ -302,9 +302,11 @@ class Question(models.Model):
         """
         if self.is_published: 
             self.is_published = False 
+            self.is_collecting_data = False 
         else: 
             if self.publishable(): 
                 self.is_published = True 
+                self.is_collecting_data = True 
         self.save()
         return None 
 
@@ -393,10 +395,12 @@ class Question_SPPS(Question):
     def publish(self) -> None: 
         if self.is_published: 
             self.is_published = False 
+            self.is_collecting_data = False 
         else: 
             # Check if necessary information is present
             if self.publishable() and self.model_mass: 
                 self.is_published = True 
+                self.is_collecting_data = True 
         self.save() 
         return None 
 
@@ -602,6 +606,7 @@ class Question_MPPS(Question):
     def publish(self) -> None: 
         if self.is_published: 
             self.is_published = False 
+            self.is_collecting_data = False 
         else: 
             # Check if necessary information is present 
             if (
@@ -609,6 +614,7 @@ class Question_MPPS(Question):
                 (not self.starting_eid or self.init_mid)
             ): 
                 self.is_published = True 
+                self.is_collecting_data = True 
         self.save() 
         return None 
 
@@ -831,10 +837,12 @@ class Question_ASMB(Question):
     def publish(self) -> None: 
         if self.is_published: 
             self.is_published = False 
+            self.is_collecting_data = False 
         else: 
             # Check if necessary information is present
             if self.publishable() and self.model_inertia and self.starting_eid: 
                 self.is_published = True 
+                self.is_collecting_data = True 
         self.save() 
         return None 
 
@@ -1009,6 +1017,7 @@ class Question_MSPS(Question):
     def publish(self) -> None:
         if self.is_published: 
             self.is_published = False 
+            self.is_collecting_data = False 
         else: 
             # Check if necessary information is present 
             actual_steps = len(Question_Step_PS.objects.filter(question=self))
@@ -1017,6 +1026,7 @@ class Question_MSPS(Question):
                 (not self.starting_eid or self.init_mid)  
             ): 
                 self.is_published = True 
+                self.is_collecting_data = True 
                 if actual_steps != self.total_steps: 
                     self.total_steps = actual_steps
         self.save() 
