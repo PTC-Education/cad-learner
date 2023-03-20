@@ -61,7 +61,6 @@ class HistoryData(models.Model):
     )
     # Attempt information 
     num_attempt = models.IntegerField(default=0) # the n-th attempt 
-    time_spent = models.FloatField(default=0.0)
     is_final_failure = models.BooleanField(default=False) # did final sub fail?
     # General design data collected 
     # Each question type may collect additional design data 
