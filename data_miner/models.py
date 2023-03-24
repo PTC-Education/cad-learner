@@ -64,7 +64,7 @@ class HistoryData(models.Model):
     is_final_failure = models.BooleanField(default=False) # did final sub fail?
     # General design data collected 
     # Each question type may collect additional design data 
-    microversions_discrip = models.JSONField(default=list, null=True)
+    microversions_descrip = models.JSONField(default=list, null=True)
     # Since all design data are queried in the background after a task 
     # is completed, the time a user completes the task and the time the 
     # app completes all the data retrieval are likely different. 
@@ -120,7 +120,7 @@ class HistoryData_PS(HistoryData):
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
             user.refresh_oauth_token() 
 
-        self.microversions_discrip = get_microversions_discrip(user, q_info)
+        self.microversions_descrip = get_microversions_descrip(user, q_info)
         self.final_feature_list = get_feature_list(user, q_info)
         self.final_shaded_views = {
             "FRT": get_shaded_view(user, q_info, view_mat=FRT_VIEW_MAT), 
@@ -169,7 +169,7 @@ class HistoryData_AS(HistoryData):
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
             user.refresh_oauth_token() 
 
-        self.microversions_discrip = get_microversions_discrip(user, q_info)
+        self.microversions_descrip = get_microversions_descrip(user, q_info)
         self.final_assembly_def = get_assembly_definition(user, q_info)
         self.final_shaded_views = {
             "FRT": get_shaded_view(user, q_info, view_mat=FRT_VIEW_MAT), 
@@ -181,7 +181,7 @@ class HistoryData_AS(HistoryData):
 
 
 #################### Helper API calls ####################
-def get_microversions_discrip(user: AuthUser, q_info: Tuple[str]) -> List[Any]: 
+def get_microversions_descrip(user: AuthUser, q_info: Tuple[str]) -> List[Any]: 
     """ Retrieve all microversions (descriptions and timestamps) of the 
     workspace element as a record of all user actions during the design 
     process. 

@@ -666,6 +666,11 @@ class Question_MPPS(Question):
                 return err_msg, True 
             else: 
                 return err_msg, False 
+            
+        # Check if there are parts with no materials assigned
+        for item in mass_prop['bodies'].values(): 
+            if not item['hasMass']: 
+                return "Material assignment is missing for one or more of the submitted part(s).", False 
 
         # Check if there are derived parts other than those imported for initiation 
         for fea in feature_list['features']: 
@@ -1211,13 +1216,15 @@ class Question_Step_PS(models.Model):
         # Check if submitted parts are okay with basic metrics 
         if len(mass_prop['bodies']) == 0: 
             return "No parts found - please model the part then try re-submitting." 
-        elif not self.question.is_multi_part and not mass_prop['bodies']['-all-']['hasMass']: 
-            return "Please remember to assign a material to your part."
-        elif (
-            self.question.is_multi_part and 
-            len(mass_prop['bodies']) != len(self.model_mass)
-        ): # Check num of parts 
-            return "The number of parts in your Part Studio does not match the reference Part Studio." 
+        if not self.question.is_multi_part:
+            if not mass_prop['bodies']['-all-']['hasMass']: # Check missing mass 
+                return "Please remember to assign a material to your part."
+        else: 
+            if len(mass_prop['bodies']) != len(self.model_mass): # Check num of parts 
+                return "The number of parts in your Part Studio does not match the reference Part Studio." 
+            for item in mass_prop['bodies'].values(): # Check missing mass 
+                if not item['hasMass']: 
+                    return "Material assignment is missing for one or more of the submitted part(s)."
         
         # Compare property values 
         if self.question.is_multi_part: 
