@@ -356,7 +356,7 @@ class Question(models.Model):
             <img src="{}" alt="stats_time"/>
             """.format(
                 plot_dist(
-                    np.array(self.completion_time) / 60, 
+                    np.array([t for t in self.completion_time if t <= 4000]) / 60, 
                     my_time / 60, x_label="Time Spent to Complete This Question (mins)"
                 )
             )
