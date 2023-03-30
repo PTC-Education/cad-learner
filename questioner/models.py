@@ -284,7 +284,7 @@ class Question(models.Model):
     def get_avg_time(self) -> str: 
         # Get average completion time required for the question 
         if self.completion_count > 0: 
-            avg_time = np.mean(self.completion_time)
+            avg_time = np.mean([t for t in self.completion_time if t <= 4000])
             return "{} minutes {} seconds".format(
                 int(avg_time // 60), round(divmod(avg_time, 60)[1])
             )
@@ -420,8 +420,8 @@ class Question_SPPS(Question):
         # Get info from user model 
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
-            user.did, "w", user.wid, user.eid, user.etype, massAsGroup=True,
-            auth_token=user.access_token
+            user.os_domain, user.did, "w", user.wid, user.eid, user.etype, 
+            massAsGroup=True, auth_token=user.access_token
         )
         if not feature_list or not mass_prop: # API call failed 
             return False 
@@ -562,6 +562,7 @@ class Question_SPPS(Question):
         # Get reference geometries 
         if not self.model_mass: 
             mass_prop = get_mass_properties(
+                "https://cad.onshape.com/", 
                 self.did, "v", self.vid, self.eid, self.etype, 
                 auth_token=get_admin_token(), massAsGroup=True
             )
@@ -599,6 +600,7 @@ class Question_MPPS(Question):
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
     model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
     model_inertia = models.JSONField(default=list, null=True, help_text="List of 3 element array describing the Principal Interia") # list of list of inertia of parts 
+    model_name = models.JSONField(default=list, null=True, help_text="Part names")
 
     class Meta: 
         verbose_name = "Multi-part Part Studio Question"
@@ -650,10 +652,14 @@ class Question_MPPS(Question):
         # Get info from user model 
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
-            user.did, "w", user.wid, user.eid, user.etype, massAsGroup=False, 
-            auth_token=user.access_token
+            user.os_domain, user.did, "w", user.wid, user.eid, user.etype, 
+            massAsGroup=False, auth_token=user.access_token
         )
-        if not feature_list or not mass_prop: # API call failed 
+        part_list = get_part_list(
+            user.os_domain, user.did, "w", user.wid, user.eid, user.access_token
+        )
+        
+        if not feature_list or not mass_prop or not part_list: # API call failed 
             return False 
 
         if len(mass_prop['bodies']) == 0: # Check if there are parts 
@@ -680,6 +686,11 @@ class Question_MPPS(Question):
             ): 
                 return "It is detected that your model contains derived features through import. Please complete the task with native Onshape features only and resubmit for evaluation ...", False 
         
+        # Clean part list 
+        partId_to_name = {} 
+        for item in part_list: 
+            partId_to_name[item['partId']] = item['name']
+        
         # Compare property values 
         eval_correct = multi_part_geo_check(
             self, 
@@ -687,7 +698,8 @@ class Question_MPPS(Question):
                 [prt['mass'][0] for prt in mass_prop['bodies'].values()], 
                 [prt['volume'][0] for prt in mass_prop['bodies'].values()], 
                 [prt['periphery'][0] for prt in mass_prop['bodies'].values()], 
-                [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()]
+                [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()], 
+                [partId_to_name[prt] for prt in mass_prop['bodies'].keys()]
             ]
         )
         if not type(eval_correct) is bool: 
@@ -799,12 +811,21 @@ class Question_MPPS(Question):
                 elif self.starting_eid and item['id'] == self.starting_eid: 
                     self.init_mid = item['microversionId']
         # Get reference geometries 
-        if not self.model_mass: 
+        if not self.model_mass or not self.model_name: 
             mass_prop = get_mass_properties(
+                "https://cad.onshape.com/", 
                 self.did, "v", self.vid, self.eid, self.etype, 
                 auth_token=get_admin_token(), massAsGroup=False 
             )
-            if mass_prop: 
+            part_list = get_part_list(
+                "https://cad.onshape.com", 
+                self.did, "v", self.vid, self.eid, auth_token=get_admin_token() 
+            )
+            if part_list and mass_prop: 
+                partId_to_name = {} 
+                for item in part_list: 
+                    partId_to_name[item['partId']] = item['name']
+                
                 self.model_mass = [
                     part['mass'][0] for part in mass_prop['bodies'].values()
                 ]
@@ -816,6 +837,9 @@ class Question_MPPS(Question):
                 ]
                 self.model_inertia = [
                     part['principalInertia'] for part in mass_prop['bodies'].values() 
+                ]
+                self.model_name = [
+                    partId_to_name[part] for part in mass_prop['bodies'].keys()
                 ]
         return super().save(*args, **kwargs)
 
@@ -872,7 +896,7 @@ class Question_ASMB(Question):
         # Get info from user model 
         assembly_def = get_assembly_definition(user)
         mass_prop = get_mass_properties(
-            user.did, "w", user.wid, user.eid, user.etype, 
+            user.os_domain, user.did, "w", user.wid, user.eid, user.etype, 
             auth_token=user.access_token
         )
         if not assembly_def or not mass_prop: # API call failed 
@@ -983,6 +1007,7 @@ class Question_ASMB(Question):
         # Get reference geometries 
         if not self.model_inertia: 
             mass_prop = get_mass_properties(
+                "https://cad.onshape.com/", 
                 self.did, "v", self.vid, self.eid, self.etype, 
                 auth_token=get_admin_token(), massAsGroup=True
             )
@@ -1180,6 +1205,7 @@ class Question_Step_PS(models.Model):
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
     model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
     model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia") 
+    model_name = models.JSONField(default=list, null=True, help_text="Part names")
     
     class Meta: 
         verbose_name = "MSPS Question Step"
@@ -1198,11 +1224,15 @@ class Question_Step_PS(models.Model):
          # Get info from user model 
         feature_list = get_feature_list(user)
         mass_prop = get_mass_properties(
-            user.did, "w", user.wid, user.eid, user.etype, 
+            user.os_domain, user.did, "w", user.wid, user.eid, user.etype, 
             massAsGroup=bool(not self.question.is_multi_part), 
             auth_token=user.access_token
         )
-        if not feature_list or not mass_prop: # API call failed 
+        part_list = get_part_list(
+            user.os_domain, user.did, "w", user.wid, user.eid, user.access_token
+        )
+        
+        if not feature_list or not mass_prop or not part_list: # API call failed 
             return False 
 
         # Check if there are derived features 
@@ -1226,6 +1256,11 @@ class Question_Step_PS(models.Model):
                 if not item['hasMass']: 
                     return "Material assignment is missing for one or more of the submitted part(s)."
         
+        # Clean part list 
+        partId_to_name = {} 
+        for item in part_list: 
+            partId_to_name[item['partId']] = item['name']
+            
         # Compare property values 
         if self.question.is_multi_part: 
             eval_correct = multi_part_geo_check(
@@ -1234,7 +1269,8 @@ class Question_Step_PS(models.Model):
                     [prt['mass'][0] for prt in mass_prop['bodies'].values()], 
                     [prt['volume'][0] for prt in mass_prop['bodies'].values()], 
                     [prt['periphery'][0] for prt in mass_prop['bodies'].values()], 
-                    [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()]
+                    [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()], 
+                    [partId_to_name[prt] for prt in mass_prop['bodies'].keys()]
                 ]
             )
         else: 
@@ -1307,12 +1343,22 @@ class Question_Step_PS(models.Model):
             )
         if not self.model_mass: 
             mass_prop = get_mass_properties(
+                "https://cad.onshape.com/", 
                 self.question.did, "v", self.question.vid, self.eid, 
                 self.question.etype, auth_token=get_admin_token(), 
                 massAsGroup=(not self.question.is_multi_part)
             )
-            if mass_prop: 
+            part_list = get_part_list(
+                "https://cad.onshape.com", 
+                self.question.did, "v", self.question.vid, self.eid, 
+                auth_token=get_admin_token() 
+            )
+            if part_list and mass_prop: 
                 if self.question.is_multi_part: 
+                    partId_to_name = {} 
+                    for item in part_list: 
+                        partId_to_name[item['partId']] = item['name']
+                        
                     self.model_mass = [
                         part['mass'][0] for part in mass_prop['bodies'].values()
                     ]
@@ -1324,6 +1370,9 @@ class Question_Step_PS(models.Model):
                     ]
                     self.model_inertia = [
                         part['principalInertia'] for part in mass_prop['bodies'].values() 
+                    ]
+                    self.model_name = [
+                        partId_to_name[part] for part in mass_prop['bodies'].keys()
                     ]
                 else: 
                     self.model_mass = mass_prop['bodies']['-all-']['mass'][0]
@@ -1405,13 +1454,16 @@ def get_jpeg_drawing(did: str, vid: str, eid: str, auth_token: str) -> str:
 
 
 def get_mass_properties(
-    did: str, wvm: str, wvmid: str, eid: str, etype: str, auth_token: str, massAsGroup=True
+    domain: str, did: str, wvm: str, wvmid: str, eid: str, etype: str, auth_token: str, massAsGroup=True
 ) -> Any: 
     """ Get the mass and geometry properties of the given element 
     """
     response = requests.get(
-        "https://cad.onshape.com/api/{}/d/{}/{}/{}/e/{}/massproperties".format(
+        os.path.join(
+            domain, 
+            "api/{}/d/{}/{}/{}/e/{}/massproperties".format(
             etype, did, wvm, wvmid, eid
+        )
         ), 
         headers={
             "Content-Type": "application/json", 
@@ -1607,6 +1659,28 @@ def get_assembly_definition(user: AuthUser, includeMateFeatures=True) -> Any:
         return None 
 
 
+def get_part_list(
+    domain: str, did: str, wvm: str, wvmid: str, eid: str, auth_token: str
+) -> Any: 
+    response = requests.get(
+        os.path.join(
+            domain, 
+            "api/parts/d/{}/{}/{}/e/{}".format(
+                did, wvm, wvmid, eid
+            )
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + auth_token
+        }
+    )
+    if response.ok: 
+        return response.json() 
+    else: 
+        return None 
+
+
 #################### Other helper functions ####################
 def plot_dist(
     dist_data: npt.ArrayLike, label_val: Union[float, bool], label_avg=True, 
@@ -1707,8 +1781,7 @@ def single_part_geo_check(
 
 
 def multi_part_geo_check(
-    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], 
-    err_tol=0.005
+    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol=0.005
 ) -> Union[bool, str]: 
         """ The model is considered to be correct if for every part in the reference model, 
         there is one and only one part in the user's model with matching properties. 
@@ -1716,37 +1789,87 @@ def multi_part_geo_check(
         """
         ref_prop = [
             question.model_mass, question.model_volume, question.model_SA, 
-            [val[0] for val in question.model_inertia]
+            [val[0] for val in question.model_inertia], question.model_name
         ]
         ref_prop = sorted(
             [
-                (ref_prop[0][i], ref_prop[1][i], ref_prop[2][i], ref_prop[3][i]) 
+                [
+                    ref_prop[0][i], ref_prop[1][i], 
+                    ref_prop[2][i], ref_prop[3][i], 
+                    ref_prop[4][i]
+                ] 
                 for i in range(len(ref_prop[0]))
             ], 
             key=lambda x : x[0]
         )
         user_prop = sorted(
             [
-                (user_prop[0][i], user_prop[1][i], user_prop[2][i], user_prop[3][i]) 
+                [
+                    user_prop[0][i], user_prop[1][i], 
+                    user_prop[2][i], user_prop[3][i], 
+                    user_prop[4][i]
+                ] 
                 for i in range(len(user_prop[0]))
             ], 
             key=lambda x : x[0]
         )
 
         eval_result = [] 
-        for i, props in enumerate(ref_prop): 
+        for i in range(len(ref_prop)): 
             check_pass = True 
-            for j, prop in enumerate(props): 
+            for j in range(4): 
                 if (
-                    prop * (1 + err_tol) < user_prop[i][j] or 
-                    prop * (1 - err_tol) > user_prop[i][j]
+                    ref_prop[i][j] * (1 + err_tol) < user_prop[i][j] or 
+                    ref_prop[i][j] * (1 - err_tol) > user_prop[i][j]
                 ): 
                     check_pass = False 
+                # Round for display 
+                if ref_prop[i][j] < 0.1 or ref_prop[i][j] > 99: 
+                    ref_prop[i][j] = '{:.2e}'.format(ref_prop[i][j])
+                    user_prop[i][j] = '{:.2e}'.format(user_prop[i][j])
+                else: 
+                    ref_prop[i][j] = round(ref_prop[i][j], 2)
+                    user_prop[i][j] = round(user_prop[i][j], 2)
             eval_result.append(check_pass)
         
         if not False in eval_result: 
             return True 
         else: 
-            return "You have modelled {} out of {} parts correctly.".format(
-                eval_result.count(True), len(eval_result)
-            )
+            err_msg = f'''
+                <p>You have modelled {eval_result.count(True)} out of {len(eval_result)} parts correctly.</p>
+                <table>
+                    <tr>
+                        <th></th>
+                        <th>Part Name</th>
+                        <th>Mass (kg)</th>
+                        <th>Volume (m^3)</th>
+                        <th>Surface Area (m^2)</th>
+                        <th>Principal Inertia Min. (kg.m^2)</th>
+                        <th>Eval.</th>
+                    </tr>
+            '''
+            for i, item in enumerate(ref_prop): 
+                err_msg += f'''
+                    <tr class="{"sep" if i != 0 else "_"}">
+                        <td>Ref.</td>
+                        <td>{item[4]}</td>
+                        <td>{item[0]}</td>
+                        <td>{item[1]}</td>
+                        <td>{item[2]}</td>
+                        <td>{item[3]}</td>
+                        <td rowspan="2">{"&#x2713;" if eval_result[i] else "&#x2717;"}</td>
+                    </tr>
+                    <tr>
+                        <td>Sub.</td>
+                        <td>{user_prop[i][4]}</td>
+                        <td>{user_prop[i][0]}</td>
+                        <td>{user_prop[i][1]}</td>
+                        <td>{user_prop[i][2]}</td>
+                        <td>{user_prop[i][3]}</td>
+                    </tr>
+                '''
+            return err_msg + '''
+                </table>
+                <p>Ref.: reference model; Sub.: submitted model</p>
+                <p><strong>Note:</strong> the comparison table is for reference only! Parts are listed and evaluated by increasing mass properties.</p>
+            '''

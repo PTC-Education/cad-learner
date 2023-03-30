@@ -83,7 +83,7 @@ class Questions_MPPS_Admin(admin.ModelAdmin):
     readonly_fields = [
         'question_id', 'question_type', 'allowed_etype', 'etype', 'init_mid', 
         'ref_mid', 'model_mass', 'model_volume', 'model_SA', 'model_inertia', 
-        'is_published', 'completion_count', 'reviewer_completion_count', 
+        'model_name', 'is_published', 'completion_count', 'reviewer_completion_count', 
         'is_multi_step', 'is_collecting_data'
     ]
     exclude = ['thumbnail', 'completion_time', 'completion_feature_cnt', 'drawing_jpeg']
@@ -157,7 +157,7 @@ class PS_Steps(admin.StackedInline):
     extra = 1
     can_delete = True 
     readonly_fields = [
-        'mid', 'model_mass', 'model_volume', 'model_SA', 'model_inertia'
+        'mid', 'model_mass', 'model_volume', 'model_SA', 'model_inertia', 'model_name'
     ]
     exclude = ['drawing_jpeg']
 
