@@ -47,8 +47,8 @@ ol {
 /* Style the search menu */
 #searchInput {
     width: 98%;
-    height: 2em;
-    font-size: 18px;
+    height: 1.5em;
+    font-size: 14px;
     padding-left: 11px;
     border: 1px 1px solid #ddd;
 }
@@ -63,14 +63,19 @@ ol {
     border-radius: 5px;
     background-color: #eee;
 	float: left;
-	line-height: 2.5em; 
+	line-height: 1.5em; 
     text-align: center;
-	margin-bottom: 2em; 
+    margin-top: 1em;
 	cursor: pointer;
+    font-size: 14px;
 }
 
 .btn-group input.radio:hover ~ label, .btn-group input.radio:checked ~ label{
     background-color: #bbb;
+}
+
+#reviewer_filter {
+    margin-bottom: 1em;
 }
 
 
