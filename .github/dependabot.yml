@@ -13,6 +13,6 @@ updates:
       day: "tuesday"
       time: "09:00"
       timezone: "America/New_York"
-    reviewer: 
+    reviewers: 
       - "Felix-Deng"
       - "matthewlouismueller"
