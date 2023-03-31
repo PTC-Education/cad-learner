@@ -35,7 +35,7 @@ def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool:
     # After the MAX_ENTRIES_PER_USER, new data are collected for a user iff the time spent 
     # has improvement over the best performance in history by a factor of MIN_IMPROV_REQ  
     MIN_IMPROVE_REQ = 0.2
-    return False
+    
     if question.question_type == QuestionType.MULTI_STEP_PS: 
         return False 
     
