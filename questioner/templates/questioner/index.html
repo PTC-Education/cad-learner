@@ -3,7 +3,7 @@
     <head>
         {% load static %}
         <link rel="stylesheet" href="{% static 'questioner/index.css' %}">
-        <!-- Load search_filter function for the search menu and difficulty filtering -->
+        <!-- Load search_filter functions for the search menu, difficulty filtering, and question type filtering -->
         <script src="{% static 'questioner/search_filter.js' %}" type="text/javascript"></script>
     </head>
     <body>
@@ -36,7 +36,7 @@
         <div class="btn-group">
             <div>
                 <input type="radio" name="user" class="radio" id="all_q" onclick="search_filter()" checked />
-                <label for="all_q">All</label>
+                <label for="all_q">All Levels</label>
             </div>
             <div>
                 <input type="radio" name="user" class="radio" id="easy_q" onclick="search_filter()" />
@@ -51,11 +51,30 @@
                 <label for="hard_q">Challenging</label>
             </div>
         </div>
+         <!-- Buttons to filter by question type -->
+        <div class="btn-group">
+            <div>
+                <input type="radio" name="qType" class="radio" id="all_type" onclick="search_filter()" checked />
+                <label for="all_type">All Types</label>
+            </div>
+            <div>
+                <input type="radio" name="qType" class="radio" id="single_type" onclick="search_filter()" />
+                <label for="single_type">Single-Part</label>
+            </div>
+            <div>
+                <input type="radio" name="qType" class="radio" id="multi_type" onclick="search_filter()" />
+                <label for="multi_type">Multi-Part</label>
+            </div>
+            <div>
+                <input type="radio" name="qType" class="radio" id="assem_type" onclick="search_filter()" />
+                <label for="assem_type">Assembly</label>
+            </div>
+        </div>
+        <div style="clear:both;">&nbsp;</div>
         <!-- Allow filtering of unpublished questions for reviewers-->
         <input type="hidden" id="is_reviewer" value="{{ user.is_reviewer }}" />
         {% if user.is_reviewer %}
-            <br /><br />
-            <div>
+            <div id="reviewer_filter">
                 <input type="radio" name="rev" id="rev_all" onclick="search_filter()" checked/>
                 <label for="rev_all">All Questions</label>
                 <input type="radio" name="rev" id="rev_pub" onclick="search_filter()" />
@@ -64,7 +83,6 @@
                 <label for="rev_unpub">Unpublished Only</label>
             </div>
         {% endif %}
-        <br /><br />
         <!-- List all available questions -->
         <section id="menu">
             {% for question in questions %}
@@ -77,7 +95,15 @@
                     <div class="panel">
                         <ul>
                             <!-- Question type -->
-                            <li>Challenge type: {{ question.get_question_type_display }}</li>
+                            {% if question.question_type == 'MSPS' %}
+                                {% if question.is_multi_part %}
+                                    <li class="q_type">Challenge type: Multi-part Part Studio</li>
+                                {% else %}
+                                    <li class="q_type">Challenge type: Single-part Part Studio</li>
+                                {% endif %}
+                            {% else %}
+                                <li class="q_type">Challenge type: {{ question.get_question_type_display }}</li>
+                            {% endif %}
                             <!-- Update difficulty_filter.js if changing <li> here -->
                             {% if question.difficulty == "EA" %}
                                 <li class="difficulty">Difficulty: Easy</li>

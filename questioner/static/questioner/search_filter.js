@@ -3,18 +3,30 @@ function search_filter() {
     var input = document.getElementById("searchInput"); 
     var filter = input.value.toUpperCase(); 
 
-    // Get difficulty level is selected 
-    var q_type; 
+    // Get difficulty level  selected 
+    var q_level; 
     if (document.getElementById("easy_q").checked) {
-        q_type = "Difficulty: Easy"; 
+        q_level = "Difficulty: Easy"; 
     } else if (document.getElementById("med_q").checked) {
-        q_type = "Difficulty: Medium"; 
+        q_level = "Difficulty: Medium"; 
     } else if (document.getElementById("hard_q").checked) {
-        q_type = "Difficulty: Challenging"; 
+        q_level = "Difficulty: Challenging"; 
+    } else {
+        q_level = "all"; 
+    }
+    
+    // Get question type selected 
+    var q_type; 
+    if (document.getElementById("single_type").checked) {
+        q_type = "Challenge type: Single-part Part Studio"; 
+    } else if (document.getElementById("multi_type").checked) {
+        q_type = "Challenge type: Multi-part Part Studio"; 
+    } else if (document.getElementById("assem_type").checked) {
+        q_type = "Challenge type: Assembly Mating"; 
     } else {
         q_type = "all"; 
     }
-    
+
     // Get availability if reviewer 
     var is_reviewer = document.getElementById("is_reviewer").value === "True"; 
     var q_avail; 
@@ -34,8 +46,10 @@ function search_filter() {
     // Get all the questions that are published 
     var questions = document.getElementsByClassName("question"); 
 
+    // filter the questions
     for (var i = 0; i < questions.length; i++) {
         var level = questions[i].getElementsByClassName("difficulty")[0].innerHTML; 
+        var type = questions[i].getElementsByClassName("q_type")[0].innerHTML;
         var q_name = questions[i].getElementsByClassName("accordion")[0].getElementsByTagName("h3")[0]; 
         if (is_reviewer) {
             var avail = (
@@ -46,7 +60,7 @@ function search_filter() {
             var avail = true; 
         }
         if (
-                (q_type === "all" || q_type === level) && avail && 
+                (q_level === "all" || q_level === level) && (q_type === "all" || q_type === type) && avail && 
                 q_name.innerHTML.toUpperCase().indexOf(filter) > -1
             ) {
             questions[i].style.display = ""; 
