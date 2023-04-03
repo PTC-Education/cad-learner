@@ -880,9 +880,19 @@ class Question_ASMB(Question):
         Part Studio into users' working assembly as starting parts to be assembled. 
         Return True if successful, otherwise False 
         """
-        return create_assembly_instance(
+        rp1 = create_assembly_instance(
             user, self.did, self.vid, self.starting_eid
-        )
+        ) # returns True if successful 
+        rp2 = get_assembly_definition(user, includeMateFeatures=False)
+        
+        if rp1 and rp2: 
+            user.add_field = {
+                "Cached_Assembly_IDs": [
+                    instance['id'] for instance in rp2['rootAssembly']['instances']
+                ]
+            }
+            user.save() 
+        return rp1 and rp2 
         
 
     def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
@@ -909,6 +919,14 @@ class Question_ASMB(Question):
         if feature_cnt == 0: 
             return "No mate features found - please mate the parts then try re-submitting.", False 
 
+        # Check if all app-imported instances are used 
+        user_ids = [ins['id'] for ins in assembly_def['rootAssembly']['instances']]
+        for sub_ass in assembly_def['subAssemblies']: 
+            user_ids.extend([ins['id'] for ins in sub_ass['instances']])
+        for id in user.add_field['Cached_Assembly_IDs']: 
+            if id not in user_ids: 
+                return "It is detected that you did not use all the part instances automatically imported by the app, which you may have deleted or replaced. You can either restore your workspace to the microversion before you deleted the part instance(s) or you can restart the challenge by returning to home.", False 
+        
         # Compare property values 
         ref_model = self.model_inertia
         user_model = mass_prop['principalInertia']
@@ -1630,10 +1648,7 @@ def create_assembly_instance(
             'isWholePartStudio': True 
         }
     )
-    if response.ok: 
-        return True 
-    else: 
-        return False 
+    return response.ok 
 
 
 def get_assembly_definition(user: AuthUser, includeMateFeatures=True) -> Any: 
