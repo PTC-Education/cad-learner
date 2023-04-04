@@ -44,32 +44,41 @@ BLB_VIEW_MAT = [
 
 # Create your models here.
 class HistoryData(models.Model): 
-    """ The base class for history data collection of all question types. 
-    It stores all the common fields, and each question type should have 
-    additional fields and methods added for different types of design 
-    data to be stored and collected. 
+    """ 
+    The base class for history data collection of all question types 
+    
+    It stores all the common fields, and each question type should have additional fields and methods added for different types of design data to be stored and collected 
     """
     # User identification  
     os_user_id = models.CharField(max_length=30, default=None)
-    start_time = models.DateTimeField(default=None, null=True)
-    time_of_completion = models.DateTimeField(default=None, null=True)
-    # Question identification 
-    question_id = models.IntegerField(default=0) 
-    question_type = models.CharField(
-        max_length=4, choices=QuestionType.choices, 
-        default=QuestionType.UNKNOWN
+    start_time = models.DateTimeField(
+        default=None, null=True, help_text="Time the question was initiated for the user"
     )
+    time_of_completion = models.DateTimeField(
+        default=None, null=True, help_text="Time of the final submission of the question received, either successful or failed"
+    )
+    
+    # Question identification 
+    question_id = models.IntegerField(default=0, help_text='Unique question ID') 
+    question_type = models.CharField(
+        max_length=4, choices=QuestionType.choices, default=QuestionType.UNKNOWN
+    )
+    
     # Attempt information 
-    num_attempt = models.IntegerField(default=0) # the n-th attempt 
-    is_final_failure = models.BooleanField(default=False) # did final sub fail?
+    num_attempt = models.IntegerField(default=0, help_text="The n-th attempt") 
+    is_final_failure = models.BooleanField(default=False, help_text="Did final sub fail?")
     # General design data collected 
     # Each question type may collect additional design data 
-    microversions_descrip = models.JSONField(default=list, null=True)
+    microversions_descrip = models.JSONField(
+        default=list, null=True, help_text="Descriptions of all microversion history events (with user names removed)"
+    )
     # Since all design data are queried in the background after a task 
     # is completed, the time a user completes the task and the time the 
     # app completes all the data retrieval are likely different. 
     # This field tracks the latter time for database update purpose. 
-    final_query_complete_time = models.DateTimeField(default=None, null=True)
+    final_query_complete_time = models.DateTimeField(
+        default=None, null=True, help_text="Time when all data query API calls were completed"
+    )
 
     def first_failure_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
         return None 
@@ -79,24 +88,42 @@ class HistoryData(models.Model):
 
 
 class HistoryData_PS(HistoryData): 
-    """ Used for both single-part part studio (SPPS) questions and 
-    multi-part part studio (MPPS) questions 
+    """ 
+    Inherits :model:`data_miner.HistoryData` and is used for both :model:`questioner.Question_SPPS` questions and :model:`questioner.Question_MPPS` questions 
     """
     # First failed submission 
-    first_failed_time = models.DateTimeField(default=None, null=True)
-    failed_feature_list = models.JSONField(default=dict, null=True)
-    failed_shaded_views = models.JSONField(default=dict, null=True)
-    failed_mesh = models.TextField(default=None, null=True, blank=True)
+    first_failed_time = models.DateTimeField(
+        default=None, null=True, help_text="Time of the first failed submission"
+    )
+    failed_feature_list = models.JSONField(
+        default=dict, null=True, help_text="Feature list of the first failed submission model"
+    )
+    failed_shaded_views = models.JSONField(
+        default=dict, null=True, help_text="Shaded view images of the first failed submission model"
+    )
+    failed_mesh = models.TextField(
+        default=None, null=True, blank=True, help_text="Mesh of the first failed submission model"
+    )
 
     # Final submission 
-    final_feature_list = models.JSONField(default=dict, null=True)
-    final_shaded_views = models.JSONField(default=dict, null=True)
-    # List[Tuple[rollbackBarIndex, mesh]]
-    process_mesh = models.JSONField(default=list, null=True)
+    final_feature_list = models.JSONField(
+        default=dict, null=True, help_text="Feature list of the final submitted model"
+    )
+    final_shaded_views = models.JSONField(
+        default=dict, null=True, help_text="Shaded view images of the final submitted model"
+    )
+    process_mesh = models.JSONField(
+        default=list, null=True, help_text="The mesh of the model after every feature of the final submitted model"
+    ) # List[Tuple[rollbackBarIndex, mesh]]
 
     def first_failure_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
-        """ Record data for first failed submission 
-        q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+        """ 
+        Record data for first failed submission 
+        
+        **Arguments:**
+        
+        - ``user``: the :model:`questioner.AuthUser` that stores all user-specific login info with accessing tokens
+        - ``q_info``: ``Tuple[os_domain, did, begin_mid, end_mid, eid, etype]`` at the time of completion 
         """
         # Check if user's OAuth token still valid 
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
@@ -113,8 +140,13 @@ class HistoryData_PS(HistoryData):
         return None 
 
     def final_sub_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
-        """ Record data for final correct submission 
-        q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+        """ 
+        Record data for final submission, either successful or failed
+        
+        **Arguments:**
+        
+        - ``user``: the :model:`questioner.AuthUser` that stores all user-specific login info with accessing tokens
+        - ``q_info``: ``Tuple[os_domain, did, begin_mid, end_mid, eid, etype]`` at the time of completion 
         """
         # Check if user's OAuth token still valid 
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
@@ -133,20 +165,36 @@ class HistoryData_PS(HistoryData):
 
 
 class HistoryData_AS(HistoryData): 
-    """ Used for both assembly mating (ASMB) questions and 
+    """ 
+    Inherits :model:`data_miner.HistoryData` and is used for both :model:`questioner.Question_ASMB` questions 
     """
     # First failed submission 
-    first_failed_time = models.DateTimeField(default=None, null=True)
-    failed_assembly_def = models.JSONField(default=dict, null=True)
-    failed_shaded_views = models.JSONField(default=dict, null=True)
+    first_failed_time = models.DateTimeField(
+        default=None, null=True, help_text="Time of the first failed submission"
+    )
+    failed_assembly_def = models.JSONField(
+        default=dict, null=True, help_text="Assembly definition of the first failed submission assembly"
+    )
+    failed_shaded_views = models.JSONField(
+        default=dict, null=True, help_text="Shaded view images of the first failed submission assembly"
+    )
 
     # Final submission 
-    final_assembly_def = models.JSONField(default=dict, null=True)
-    final_shaded_views = models.JSONField(default=dict, null=True)
+    final_assembly_def = models.JSONField(
+        default=dict, null=True, help_text="Assembly definition of the final submitted assembly"
+    )
+    final_shaded_views = models.JSONField(
+        default=dict, null=True, help_text="Shaded view images of the final submitted assembly"
+    )
 
     def first_failure_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
-        """ Record data for first failed submission 
-        q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+        """ 
+        Record data for first failed submission 
+        
+        **Arguments:**
+        
+        - ``user``: the :model:`questioner.AuthUser` that stores all user-specific login info with accessing tokens
+        - ``q_info``: ``Tuple[os_domain, did, begin_mid, end_mid, eid, etype]`` at the time of completion 
         """
         # Check if user's OAuth token still valid 
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
@@ -162,8 +210,13 @@ class HistoryData_AS(HistoryData):
         return None 
 
     def final_sub_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
-        """ Record data for final correct submission 
-        q_info: [domain, did, begin_mid, end_mid, eid, etype] at the time of completion 
+        """ 
+        Record data for final submission, either successful or failed
+        
+        **Arguments:**
+        
+        - ``user``: the :model:`questioner.AuthUser` that stores all user-specific login info with accessing tokens
+        - ``q_info``: ``Tuple[os_domain, did, begin_mid, end_mid, eid, etype]`` at the time of completion 
         """
         # Check if user's OAuth token still valid 
         if user.expires_at <= timezone.now() + timedelta(minutes=10): 
