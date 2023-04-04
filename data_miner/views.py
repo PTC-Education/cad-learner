@@ -17,11 +17,10 @@ D_Type_Dict = {
 
 
 def collect_fail_data(user: AuthUser) -> bool: 
-    """ When this view is called, some data of the failed submission attempt 
-    of the user is recorded. The timing of the triggering of this process 
-    is set in the questioner app, under each question type model. The kinds 
-    of data that are recorded for different question types may also be 
-    different, set in the specific history_data class model. 
+    """ 
+    When this view is called, some data of the failed submission attempt of the user is recorded 
+    
+    The timing of the triggering of this process is set in the questioner app, under each question type model. The kinds of data that are recorded for different question types may also be different, set in the specific :model:`data_miner.HistoryData` model (either :model:`data_miner.HistoryData_PS` or :model:`data_miner.HistoryData_AS`)
     """
     # Start a new data entry 
     data_entry = D_Type_Dict[user.curr_question_type](
@@ -44,9 +43,8 @@ def collect_fail_data(user: AuthUser) -> bool:
 
 
 def collect_final_data(user: AuthUser, is_failure: bool) -> bool: 
-    """ Once a user submits the model and passes the evaluation check, 
-    data of the design process and the product will be collected. This 
-    function initiates the collection process. 
+    """ 
+    Once a user submits the model and passes the evaluation check, data of the design process and the product will be collected. This function initiates the collection process 
     """    
     # Create data entry or find created data entry if exists 
     try: 

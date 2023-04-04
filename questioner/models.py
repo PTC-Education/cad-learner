@@ -69,34 +69,66 @@ class ElementType(models.TextChoices):
 
 
 class AuthUser(models.Model): 
-    os_user_id = models.CharField(max_length=30, default=None, unique=True)
-    is_reviewer = models.BooleanField(default=False)
+    """
+    Every unique Onshape user who has used this app has one and only one row entry in this table. 
     
-    os_domain = models.URLField(max_length=100, null=True)
-    did = models.CharField(max_length=30, null=True)
-    wid = models.CharField(max_length=30, null=True)
-    eid = models.CharField(max_length=30, null=True)
-    etype = models.CharField(max_length=40, choices=ElementType.choices, null=True)
+    It stores informations including: 
+    
+    - User authentication tokens for API calls 
+    - User working Onshape environment to locate resources 
+    - Question attempt status (if modelling and where)
+    - Question attempt history 
+    """
+    os_user_id = models.CharField(max_length=30, default=None, unique=True)
+    is_reviewer = models.BooleanField(
+        default=False, help_text="Set through the Reviewer model"
+    )
+    
+    # Onshape working environment of the user 
+    os_domain = models.URLField(
+        max_length=100, null=True, 
+        help_text="https://cad.onshape.com for non-enterprise Onshape accounts"
+    )
+    did = models.CharField(max_length=30, null=True, help_text="Onshape document ID")
+    wid = models.CharField(max_length=30, null=True, help_text="Onshape workspace ID")
+    eid = models.CharField(max_length=30, null=True, help_text="Onshape element ID")
+    etype = models.CharField(
+        max_length=40, choices=ElementType.choices, null=True, 
+        help_text="Onshape element type"
+    )
 
+    # Tokens and expiry tracking from Onshape OAuth 
     access_token = models.CharField(max_length=100, null=True)
     refresh_token = models.CharField(max_length=100, null=True)
     expires_at = models.DateTimeField(null=True)
 
+    # Modelling status of the user 
+    # Fields are only applicable when modelling 
     is_modelling = models.BooleanField(default=False)
-    # The following fields are only applicable when modelling 
-    last_start = models.DateTimeField(null=True) 
+    last_start = models.DateTimeField(null=True, help_text="Last time the quesiton was initiated") 
     curr_question_type = models.CharField(max_length=4, choices=QuestionType.choices, null=True)
     curr_question_id = models.CharField(max_length=400, null=True) 
     curr_step = models.PositiveIntegerField(null=True) # for multi-step questions 
-    start_mid = models.CharField(max_length=30, null=True) 
-    end_mid = models.CharField(max_length=30, null=True) 
+    start_mid = models.CharField(
+        max_length=30, null=True, 
+        help_text="Onshape microversion ID when the question is first initiated"
+    ) 
+    end_mid = models.CharField(
+        max_length=30, null=True, 
+        help_text="Onshape microversion ID of the last submission attempt (could be either successful or failure)"
+    ) 
     add_field = models.JSONField(
         default=dict, null=True, 
         help_text="An additional field that can be used for some question types to store additional data in the user's model"
     )
     
-    completed_history = models.JSONField(default=dict)
-    failure_history = models.JSONField(default=dict)
+    # User question attempt history 
+    completed_history = models.JSONField(
+        default=dict, help_text="Question completion history of the user"
+    )
+    failure_history = models.JSONField(
+        default=dict, help_text="Question failure history of the user"
+    )
     """
     history_data = Dict[
         str(question): List[Tuple[completion_datetime, time_taken, ...]]
@@ -105,8 +137,11 @@ class AuthUser(models.Model):
     For SPPS, MPPS, and ASMB: ... includes feature_cnt
     For MSPS: ... includes feature_cnt
     """
-
+    
     def refresh_oauth_token(self) -> None: 
+        """
+        When a user's ``access_token`` is expired or about to expire, tracked by the user's ``expires_at``, this function can be called to use the ``refresh_token`` to exchange for a new ``access_token``.  
+        """
         response = requests.post(
             os.path.join(
                 os.environ['OAUTH_URL'], 
@@ -135,14 +170,22 @@ class Reviewer(models.Model):
     such that they can try out and review the question. 
     """
     os_user_id = models.CharField(max_length=30, default=None, unique=True)
-    user_name = models.CharField(max_length=500, default=None, unique=True)
-    is_main_admin = models.BooleanField(default=False)
-    is_active = models.BooleanField(default=True)
+    user_name = models.CharField(
+        max_length=500, default=None, unique=True, 
+        help_text="User name used for the user's Onshape account"
+    )
+    is_main_admin = models.BooleanField(
+        default=False, help_text="All Onshape API calls initiated through the admin portal (e.g., when questions are added or updated) will be made with the ``access_token`` of the main admin"
+    )
+    is_active = models.BooleanField(
+        default=True, help_text="Inactive reviewers do not see unpublished questions"
+    )
 
     def __str__(self) -> str:
         return self.user_name
 
     def save(self, *args, **kwargs): 
+        # Update AuthUser status 
         try: 
             user = AuthUser.objects.get(os_user_id=self.os_user_id)
             user.is_reviewer = True
@@ -150,6 +193,7 @@ class Reviewer(models.Model):
         except ObjectDoesNotExist: 
             raise ValidationError("Reviewers need to first subscribe and open the app once before they can be added ...")
         
+        # Retrieve user name 
         if not self.user_name: 
             if user.expires_at < timezone.now() + timedelta(minutes=10): 
                 user.refresh_oauth_token() 
@@ -168,6 +212,7 @@ class Reviewer(models.Model):
         return super().save(*args, **kwargs)
     
     def delete(self, using: Any = ..., keep_parents: bool = ...) -> Tuple[int, Dict[str, int]]:
+        # Update AuthUser status to maintain consistency 
         user = AuthUser.objects.get(os_user_id=self.os_user_id)
         user.is_reviewer = False 
         user.save() 
@@ -175,10 +220,12 @@ class Reviewer(models.Model):
 
 
 class Question(models.Model): 
-    """ This is the base class for all question types. 
-    It stores all the common fields required for front end, while 
-    question-type specific fields should be added to the specific 
-    model class. 
+    """ 
+    This is the base class for all question types. 
+    
+    It stores all the common fields required for front end, while question-type specific fields are added to the specific model class. 
+    
+    Every specific question type should also define type-specific functions to maintain consistent question workflow. 
     """
     class DifficultyLevel(models.TextChoices): 
         # Every text choice should have at most 2 letters 
@@ -188,59 +235,45 @@ class Question(models.Model):
         EASY = "EA", gettext_lazy("Easy")
 
     # An auto-generated (incremental) id for every question  
-    question_id = models.BigAutoField(primary_key=True)
+    question_id = models.BigAutoField(
+        primary_key=True, help_text="An auto-generated incremental unique ID for every question added"
+    )
     
     question_type = models.CharField(
-        max_length=4, 
-        choices=QuestionType.choices, 
-        default=QuestionType.UNKNOWN
+        max_length=4, choices=QuestionType.choices, default=QuestionType.UNKNOWN
     )
     difficulty = models.CharField(
         max_length=2, 
-        choices=DifficultyLevel.choices, 
-        default=DifficultyLevel.UNCLASSIFIED
+        choices=DifficultyLevel.choices, default=DifficultyLevel.UNCLASSIFIED
     )
     allowed_etype = models.CharField(
-        "Allowed element type(s)", 
-        max_length=40, 
-        choices=ElementType.choices, 
-        default=ElementType.ALL, 
-        help_text="Allowed Onshape element type(s) that can start this question."
+        "Allowed element type(s)", max_length=40, 
+        choices=ElementType.choices, default=ElementType.ALL, 
+        help_text="Allowed Onshape element type(s) that this question can be started in"
     )
     is_multi_step = models.BooleanField(
         default=False, help_text="Has multiple steps required for evaluation"
     )
 
     # IDs to be linked 
-    did = models.CharField( 
-        "Onshape document ID", 
-        max_length=40, default=None
-    )
-    vid = models.CharField(
-        "Onshape version ID", 
-        max_length=40, default=None
-    )
+    did = models.CharField("Onshape document ID", max_length=40, default=None)
+    vid = models.CharField("Onshape version ID", max_length=40, default=None)
     eid = models.CharField(
-        "Onshape element ID", 
-        max_length=40, default=None, 
-        help_text="The Onshape element ID that the thumbnail image will be taken from. It should capture the expected solution to the question."
+        "Onshape element ID", max_length=40, default=None, 
+        help_text="The Onshape element ID that the thumbnail image will be taken from. It should capture the expected solution to the question"
     )
     etype = models.CharField(
-        "Onshape element type", 
-        max_length=40, 
-        choices=ElementType.choices, 
-        default=ElementType.NA, 
+        "Onshape element type", max_length=40, 
+        choices=ElementType.choices, default=ElementType.NA, 
         help_text="The Onshape element type of the element which ID is given for thumbnial image."
     )
     os_drawing_eid = models.CharField(
-        "Onshape element ID of the main Onshape drawing", 
-        max_length=40, null=True, 
-        help_text="Element ID of the Onshape drawing that users can open in a new tab."
+        "Onshape element ID of the main Onshape drawing", max_length=40, null=True, 
+        help_text="Element ID of the native Onshape drawing that users can open in a new tab"
     ) 
     jpeg_drawing_eid = models.CharField(
-        "Onshape element ID of a JPEG export of a drawing", 
-        max_length=40, null=True, 
-        help_text="Export a drawing as a JPEG to the questions document and input that element ID here. Portrait rather than landscape is preferred."
+        "Onshape element ID of a JPEG export of a drawing", max_length=40, null=True, 
+        help_text="Element ID of an exported JPEG image of the question's drawing, stored as an Onshape element in the same question document (portrait rather than landscape is preferred)"
     ) 
 
     # Question completion stats
@@ -248,7 +281,7 @@ class Question(models.Model):
         default=0, help_text="The number of times this question is completed by users"
     )
     completion_time = models.JSONField(
-        default=list, help_text="List of completion time (in seconds) by users in history"
+        default=list, help_text="List of completion time spent (in seconds) by users in history"
     )
     reviewer_completion_count = models.PositiveIntegerField(
         default=0, help_text="The number of times this question is completed by reviewers"
@@ -265,16 +298,20 @@ class Question(models.Model):
     )
 
     # Images to be displayed 
-    thumbnail = models.TextField(null=True)
-    drawing_jpeg = models.TextField(null=True)
+    thumbnail = models.TextField(
+        null=True, help_text="The thumbnail image of the question stored as a base64 PNG image"
+    )
+    drawing_jpeg = models.TextField(
+        null=True, help_text="The exported JPEG image of the question stored as a base64 JPEG image"
+    )
     
     # This boolean indicates when the system check is passed 
     is_published = models.BooleanField(
-        default=False, help_text="Users can only access the model after it is published"
+        default=False, help_text="Users can only access the model and user data will only be recorded after it is published"
     )
     # This boolean indicates if design data should be collected for this quesiton
     is_collecting_data = models.BooleanField(
-        default=False, help_text="User design data is only collected when this is set to be True"
+        default=False, help_text="User design data is only collected when this is set to be True, assuming the question is published"
     )
 
     def __str__(self) -> str:
@@ -282,7 +319,9 @@ class Question(models.Model):
         return self.question_type + "_" + str(self.question_id)
 
     def get_avg_time(self) -> str: 
-        # Get average completion time required for the question 
+        """
+        Get average completion time required for the question (outliers are excluded)
+        """
         if self.completion_count > 0: 
             avg_time = np.mean([t for t in self.completion_time if t <= 4000])
             return "{} minutes {} seconds".format(
@@ -292,13 +331,14 @@ class Question(models.Model):
             return ""
 
     def publishable(self) -> bool: 
-        if self.question_name and self.os_drawing_eid: 
-            return True 
-        else: 
-            return False 
+        """ 
+        Check if all necessary information is available to be published 
+        """
+        return self.question_name and self.os_drawing_eid 
 
     def publish(self) -> None: 
-        """ Check if all necessary information is available to be published 
+        """
+        Publish if currently not ``is_published`` and ``publishable``; otherwise, set question to be not ``is_published``
         """
         if self.is_published: 
             self.is_published = False 
@@ -311,34 +351,46 @@ class Question(models.Model):
         return None 
 
     def initiate_actions(self, user: AuthUser) -> bool: 
-        """ Any actions required to prepare the starting document for the user 
-        E.g., import a starting part 
+        """ 
+        Any actions required to prepare the starting document for the user (e.g., import a starting part)
+        
+        Return ``True`` if initiated without error to :view:`questioner.views.model`; ``False`` otherwise 
         """
         return False 
     
     def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
-        """ When a user submits their model for evaluation, specify the checks 
-        required to evaluate correctness 
-        - If evaluation passed, True is returned. 
-        - If evaluation cannot proceed due to API errors, False is returned. 
-        - If evaluation found mismatch, a table showing the difference is returned to 
-          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
+        """ 
+        When a user submits their model for evaluation, specify the checks required to evaluate correctness 
+        
+        - If evaluation passed, return ``True``  
+        - If evaluation cannot proceed due to API errors, return ``False``
+        - If evaluation found mismatch, a table showing the difference is returned to be displayed in the HTML page. Returns: ``Tuple[err_message, ?collect_fail_data]``
+        
+        Results are returned to :view:`questioner.views.check_model`
         """
         return False 
 
     def give_up(self, user: AuthUser) -> Tuple[str, bool]: 
-        """ After at least one failed attempt, the user is given the option to 
-        give up, and some forms of solutions will be provided to the user along 
-        with instructions, depending on the question type
-        Returns: Tuple[message, ?collect_data]
+        """ 
+        After at least one failed attempt, the user is given the option to give up, and some forms of solutions will be provided to the user along with instructions, depending on the question type
+        
+        Returns: ``Tuple[message, ?collect_data]`` to be used in :view:`questioner.views.solution`
         """
         return "<p>Your attempt is now terminated.</p>", False 
 
     def show_result(self, user: AuthUser, show_best=False) -> str: 
-        """ By default, the time spent to completion of a question of all users 
-        is visualized through a distribution plot, and the relative position of 
-        the user is labelled. For every question type, specific additional 
-        distributions may also be added in corresponding subclasses. 
+        """ 
+        By default, the time spent to completion of a question of all users is presented through a distribution plot, and the relative position of the user is labelled. 
+        
+        For every question type, specific additional distributions may also be added in corresponding subclasses. 
+        
+        **Arguments:**
+        
+        - ``show_best``: ``True`` if user access results from :view:`questioner.views.index` to see their best historical performance; ``False`` otherwise to see performance of current attempt only 
+        
+        **Return:**
+        
+        All results are returned as a formatted string of HTML code to be used directly in :view:`questioner.views.complete`
         """
         # Print out user's time spent 
         if show_best: 
@@ -363,6 +415,9 @@ class Question(models.Model):
         return output 
 
     def save(self, *args, **kwargs): 
+        """
+        Default actions when a question is saved, either first added or updated afterward 
+        """
         if not self.thumbnail: 
             self.thumbnail = get_thumbnail(self, get_admin_token()) 
         if not self.drawing_jpeg: 
@@ -374,25 +429,33 @@ class Question(models.Model):
 
 
 class Question_SPPS(Question): 
+    """
+    Single-part Part Studio questions (SPPS); inherits :model:`questioner.Question`
+    
+    Only one part is required to be modelled in one Onshape Part Studio within one step, material needs to be assigned 
+    """
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
-        default=list, help_text="List of feature counts required by users in history"
+        default=list, help_text="List of feature counts required by users to complete the question in history"
     )
     ref_mid = models.CharField(
         max_length=40, default=None, null=True, 
-        help_text="Last microversion of the reference element's version"
+        help_text="Last microversion of the reference element's version, required for derived import"
     )
 
     # Properties for evaluation 
     model_mass = models.FloatField(null=True, help_text="Mass in kg")
     model_volume = models.FloatField(null=True, help_text="Volume in m^3")
     model_SA = models.FloatField(null=True, help_text="Surface area in m^2")
-    model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia")
+    model_inertia = models.JSONField(default=list, null=True, help_text="An ordered list of 3 principal interia in kg.m^2")
 
     class Meta: 
         verbose_name = "Single-part Part Studio Question"
 
     def publish(self) -> None: 
+        """
+        Publish if currently not ``is_published`` and ``publishable``; otherwise, set question to be not ``is_published``
+        """
         if self.is_published: 
             self.is_published = False 
             self.is_collecting_data = False 
@@ -405,17 +468,22 @@ class Question_SPPS(Question):
         return None 
 
     def initiate_actions(self, user: AuthUser) -> bool: 
-        """ No initiating actions are required. 
+        """ 
+        No initiating actions are required for SPPS 
+        
+        Always return ``True`` to :view:`questioner.views.model`
         """
         return True 
 
     def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
-        """ Given the user submiting a model for evaluation, this function checks if the 
-        user model matches the reference model. 
-        - If evaluation passed, True is returned. 
-        - If evaluation cannot proceed due to API errors, False is returned. 
-        - If evaluation found mismatch, a table showing the difference is returned to 
-          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
+        """ 
+        When a user submits their model for evaluation, this function checks if the user model matches the reference model. 
+        
+        - If evaluation passed, return ``True``  
+        - If evaluation cannot proceed due to API errors, return ``False``
+        - If evaluation found mismatch, a table showing the difference is returned to be displayed in the HTML page. Returns: ``Tuple[err_message, ?collect_fail_data]``
+        
+        Results are returned to :view:`questioner.views.check_model`
         """
         # Get info from user model 
         feature_list = get_feature_list(user)
@@ -486,11 +554,14 @@ class Question_SPPS(Question):
             return True 
 
     def give_up(self, user:AuthUser) -> Tuple[str, bool]: 
-        """ If a user gives up on the problem and wants to see the solution, 
-        a derived version of the reference part is first inserted into the 
-        user's model, and a GIF instruction will be shown to teach the user 
-        how to transform the imported part to see mismatch of their model. 
-        Returns: Tuple[message, ?collect_data]
+        """ 
+        If a user gives up on the question and wants to see the solution, a derived version of the reference part is first inserted into the user's model
+        
+        A GIF instruction will be shown to teach the user how to transform the imported part to see mismatch of their model (image embedded in :template:`questioner/solution.html`)
+        
+        Failed import of the reference part will instruct the user to import from the reference document on their own
+        
+        Returns: ``Tuple[message, ?collect_data]`` to be used in :view:`questioner.views.solution`
         """
         temp_mid = get_current_microversion(user) 
         response = insert_ps_to_ps(
@@ -527,8 +598,16 @@ class Question_SPPS(Question):
 
     
     def show_result(self, user: AuthUser, show_best=False) -> str: 
-        """ Other than the default time spent comparison, also plot the 
-        distribution of features used to complete the question. 
+        """ 
+        Other than the default time spent comparison, also plot the distribution of features used to complete the question 
+        
+        **Arguments:**
+        
+        - ``show_best``: ``True`` if user access results from :view:`questioner.views.index` to see their best historical performance; ``False`` otherwise to see performance of current attempt only 
+        
+        **Return:**
+        
+        Formatted string of HTML code returned to :view:`questioner.views.complete`
         """
         if show_best: 
             my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
@@ -548,6 +627,9 @@ class Question_SPPS(Question):
         return super().show_result(user, show_best=show_best) + output
 
     def save(self, *args, **kwargs): 
+        """
+        Default actions when a question is saved, either first added or updated afterward 
+        """
         self.question_type = QuestionType.SINGLE_PART_PS
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
@@ -575,37 +657,46 @@ class Question_SPPS(Question):
 
 
 class Question_MPPS(Question): 
+    """
+    Multi-part Part Studio questions (MPPS); inherits :model:`questioner.Question`
+    
+    More than one part is required to be modelled in one Onshape Part Studio within one step, material needs to be assigned to all parts 
+    
+    Optinally, a starting Onshape Part Studio can be imported to the user's working Part Studio for further modifications and design 
+    """
     # Additional question information 
     starting_eid = models.CharField(
-        "Starting element ID", 
-        max_length=40, default=None, null=True, blank=True, 
+        "Starting element ID", max_length=40, default=None, null=True, blank=True, 
         help_text="(Optional) Starting part studio that need to be imported to user document with derived features. Leave blank if none is required."
     )
     init_mid = models.CharField(
         max_length=40, default=None, null=True, 
-        help_text="Last microversion of the starting element's version"
+        help_text="Last microversion of the starting element's version, required for derived import if a starting part studio is used"
     )
     ref_mid = models.CharField(
         max_length=40, default=None, null=True, 
-        help_text="Last microversion of the reference element's version"
+        help_text="Last microversion of the reference element's version, required for derived import"
     )
 
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
-        default=list, help_text="List of feature counts required by users in history"
+        default=list, help_text="List of feature counts required by users to complete the question in history"
     )
 
     # Properties for evaluation 
     model_mass = models.JSONField(default=list, null=True, help_text="Mass in kg")
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
     model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
-    model_inertia = models.JSONField(default=list, null=True, help_text="List of 3 element array describing the Principal Interia") # list of list of inertia of parts 
+    model_inertia = models.JSONField(default=list, null=True, help_text="List of ordered list of 3 principal interia in kg.m^2") # list of list of inertia of parts 
     model_name = models.JSONField(default=list, null=True, help_text="Part names")
 
     class Meta: 
         verbose_name = "Multi-part Part Studio Question"
 
     def publish(self) -> None: 
+        """
+        Publish if currently not ``is_published`` and ``publishable``; otherwise, set question to be not ``is_published``
+        """
         if self.is_published: 
             self.is_published = False 
             self.is_collecting_data = False 
@@ -621,9 +712,10 @@ class Question_MPPS(Question):
         return None 
 
     def initiate_actions(self, user: AuthUser) -> bool: 
-        """ Initiating actions are required to import starting parts to the user's 
-        document with derived features when they start the question. 
-        Return True if successful, otherwise False 
+        """ 
+        Initiating actions are required to import starting parts to the user's document with derived features when they start the question, if a ``starting_eid`` is given 
+         
+        Return ``True`` to :view:`questioner.views.model` if initiated successfully; ``False`` otherwise 
         """
         if not self.starting_eid: # no initial import required 
             return True 
@@ -642,12 +734,14 @@ class Question_MPPS(Question):
             return True
 
     def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
-        """ Given the user submiting a model for evaluation, this function checks if the 
-        user model matches the reference model. 
-        - If evaluation passed, True is returned. 
-        - If evaluation cannot proceed due to API errors, False is returned. 
-        - If evaluation found mismatch, error message is returned to 
-          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
+        """ 
+        When a user submits their model for evaluation, this function checks if the user model matches the reference model 
+        
+        - If evaluation passed, return ``True``  
+        - If evaluation cannot proceed due to API errors, return ``False``
+        - If evaluation found mismatch, a table showing the difference is returned to be displayed in the HTML page. Returns: ``Tuple[err_message, ?collect_fail_data]``
+        
+        Results are returned to :view:`questioner.views.check_model`
         """
         # Get info from user model 
         feature_list = get_feature_list(user)
@@ -738,10 +832,10 @@ class Question_MPPS(Question):
             return True 
 
     def give_up(self, user: AuthUser) -> Tuple[str, bool]: 
-        """ After at least one failed attempt, the user is given the option to 
-        give up, and the reference parts will be derived imported to the user's 
-        working document along with instructions. 
-        Returns: Tuple[message, ?collect_data]
+        """ 
+        After at least one failed attempt, the user is given the option to give up, and the reference part studio will be derived imported to the user's working document as a whole along with instructions 
+        
+        Returns: ``Tuple[message, ?collect_data]`` to be used in :view:`questioner.views.solution`
         """
         temp_mid = get_current_microversion(user)
         response = insert_ps_to_ps(
@@ -777,8 +871,16 @@ class Question_MPPS(Question):
             return msg, False 
 
     def show_result(self, user: AuthUser, show_best=False) -> str: 
-        """ Other than the default time spent comparison, also plot the 
-        distribution of features used to complete the question. 
+        """ 
+        Other than the default time spent comparison, also plot the distribution of features used to complete the question 
+        
+        **Arguments:**
+        
+        - ``show_best``: ``True`` if user access results from :view:`questioner.views.index` to see their best historical performance; ``False`` otherwise to see performance of current attempt only 
+        
+        **Return:**
+        
+        Formatted string of HTML code returned to :view:`questioner.views.complete`
         """
         if show_best: 
             my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
@@ -798,6 +900,9 @@ class Question_MPPS(Question):
         return super().show_result(user, show_best=show_best) + output
 
     def save(self, *args, **kwargs): 
+        """
+        Default actions when a question is saved, either first added or updated afterward 
+        """
         self.question_type = QuestionType.MULTI_PART_PS
         self.etype = ElementType.PARTSTUDIO
         self.allowed_etype = ElementType.PARTSTUDIO
@@ -845,25 +950,32 @@ class Question_MPPS(Question):
 
 
 class Question_ASMB(Question): 
+    """
+    Assembly mating questions (ASMB); inherits :model:`questioner.Question`
+    
+    Only one assembly of parts is required to be mated into specific configurations in one Onshape Assembly within one step
+    """
     # Additional question information 
     starting_eid = models.CharField(
-        "Source Part Studio element ID", 
-        max_length=40, default=None, null=True, 
-        help_text="Starting part studio with parts that need to be imported to user assembly to be assembled."
+        "Source Part Studio element ID", max_length=40, default=None, null=True, 
+        help_text="Starting part studio with parts that need to be imported to user assembly as part instances to be assembled"
     )
 
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
-        default=list, help_text="List of mate feature counts required by users in history"
+        default=list, help_text="List of mate feature counts required by users to complete the question in history"
     )
 
     # Properties for evaluation 
-    model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia")
+    model_inertia = models.JSONField(default=list, null=True, help_text="An ordered list of 3 principal interia in kg.m^2")
 
     class Meta: 
         verbose_name = "Assembly Mating Question"
 
     def publish(self) -> None: 
+        """
+        Publish if currently not ``is_published`` and ``publishable``; otherwise, set question to be not ``is_published``
+        """
         if self.is_published: 
             self.is_published = False 
             self.is_collecting_data = False 
@@ -876,9 +988,10 @@ class Question_ASMB(Question):
         return None 
 
     def initiate_actions(self, user: AuthUser) -> bool: 
-        """ Initiating actions are required to insert parts from the starting 
-        Part Studio into users' working assembly as starting parts to be assembled. 
-        Return True if successful, otherwise False 
+        """ 
+        Initiating actions are required to insert parts from the starting Part Studio with ``starting_eid`` into users' working assembly as part instances to be assembled 
+        
+        Return ``True`` if initiated without error to :view:`questioner.views.model`; ``False`` otherwise 
         """
         rp1 = create_assembly_instance(
             user, self.did, self.vid, self.starting_eid
@@ -896,12 +1009,14 @@ class Question_ASMB(Question):
         
 
     def evaluate(self, user: AuthUser) -> Union[Tuple[str, bool], bool]: 
-        """ Given the user submiting a model for evaluation, this function checks if the 
-        user model matches the reference model. 
-        - If evaluation passed, True is returned. 
-        - If evaluation cannot proceed due to API errors, False is returned. 
-        - If evaluation found mismatch, a table showing the difference is returned to 
-          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
+        """ 
+        When a user submits their model for evaluation, specify the checks required to evaluate correctness 
+        
+        - If evaluation passed, return ``True``  
+        - If evaluation cannot proceed due to API errors, return ``False``
+        - If evaluation found mismatch, a table showing the difference is returned to be displayed in the HTML page. Returns: ``Tuple[err_message, ?collect_fail_data]``
+        
+        Results are returned to :view:`questioner.views.check_model`
         """
         # Get info from user model 
         assembly_def = get_assembly_definition(user)
@@ -970,8 +1085,10 @@ class Question_ASMB(Question):
             return True 
 
     def give_up(self, user:AuthUser) -> Tuple[str, bool]: 
-        """ The user gives up on the problem, no solutions to be provided yet 
-        Returns: Tuple[message, ?collect_data]
+        """ 
+        When the user gives up on the problem, no solutions can be provided yet, except instructing users to check the reference document 
+        
+        Returns: ``Tuple[message, ?collect_data]`` to be used in :view:`questioner.views.solution`
         """
         temp_mid = get_current_microversion(user) 
         msg = "<p>To view the solution, please visit the source document to view the reference part.</p>"
@@ -997,8 +1114,16 @@ class Question_ASMB(Question):
 
     
     def show_result(self, user: AuthUser, show_best=False) -> str: 
-        """ Other than the default time spent comparison, also plot the 
-        distribution of features used to complete the question. 
+        """ 
+        Other than the default time spent comparison, also plot the distribution of features used to complete the question 
+        
+        **Arguments:**
+        
+        - ``show_best``: ``True`` if user access results from :view:`questioner.views.index` to see their best historical performance; ``False`` otherwise to see performance of current attempt only 
+        
+        **Return:**
+        
+        Formatted string of HTML code returned to :view:`questioner.views.complete`
         """
         if show_best: 
             my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
@@ -1018,6 +1143,9 @@ class Question_ASMB(Question):
         return super().show_result(user, show_best=show_best) + output
 
     def save(self, *args, **kwargs): 
+        """
+        Default actions when a question is saved, either first added or updated afterward 
+        """
         self.question_type = QuestionType.ASSEMBLY
         self.etype = ElementType.ASSEMBLY
         self.allowed_etype = ElementType.ASSEMBLY
@@ -1036,33 +1164,41 @@ class Question_ASMB(Question):
 
 
 class Question_MSPS(Question): 
+    """
+    Multi-step Part Studio questions (MSPS); inherits :model:`questioner.Question`
+    
+    One or more parts are required to be modelled in one Onshape Part Studio with one or more steps, material needs to be assigned to all parts 
+    
+    Every step of an MSPS question is to be constructed with a :model:`questioner.Question_Step_PS` model
+    
+    Optinally, a starting Onshape Part Studio can be imported to the user's working Part Studio for further modifications and design 
+    """
     # Additional question information 
     is_multi_part = models.BooleanField(
-        default=False, 
-        help_text="Does this question contains multiple parts in one Part Studio?"
+        default=False, help_text="Does this question contains multiple parts in one Part Studio?"
     )
     starting_eid = models.CharField(
-        "Starting element ID", 
-        max_length=40, default=None, null=True, blank=True, 
-        help_text="(Optional) Starting part studio that need to be imported to user document with derived features. Leave blank if none is required."
+        "Starting element ID", max_length=40, default=None, null=True, blank=True, 
+        help_text="(Optional) Starting Part Studio that needs to be imported to user document with derived features (leave blank if none is required)"
     )
     init_mid = models.CharField(
         max_length=40, default=None, null=True, 
-        help_text="Last microversion of the starting element's version"
+        help_text="Last microversion of the starting element's version, required for derived import if a starting part studio is used"
     )
-    total_steps = models.IntegerField(
-        "Number of steps", default=0
-    )
+    total_steps = models.IntegerField("Number of steps", default=0)
 
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
-        default=list, help_text="List of feature counts required by users in history"
+        default=list, help_text="List of feature counts required by users to complete the question in history"
     )
 
     class Meta: 
         verbose_name = "Multi-step Part Studio Question"
 
     def publish(self) -> None:
+        """
+        Publish if currently not ``is_published`` and ``publishable``; otherwise, set question to be not ``is_published``
+        """
         if self.is_published: 
             self.is_published = False 
             self.is_collecting_data = False 
@@ -1081,9 +1217,10 @@ class Question_MSPS(Question):
         return None 
 
     def initiate_actions(self, user: AuthUser) -> bool:
-        """ Initiating actions are required to import starting parts to the user's 
-        document with derived features when they start the question. 
-        Return True if successful, otherwise False 
+        """ 
+        Initiating actions are required to import starting parts to the user's document with derived features when they start the question, if a ``starting_eid`` is given 
+         
+        Return ``True`` to :view:`questioner.views.model` if initiated successfully; ``False`` otherwise 
         """
         if not self.starting_eid: # no initial import required 
             return True 
@@ -1102,12 +1239,14 @@ class Question_MSPS(Question):
             return True
 
     def evaluate(self, user: AuthUser, step: int) -> Union[Tuple[str, bool], bool, int]:
-        """ Given the user submiting a model for evaluation, this function checks if the 
-        user model matches the reference model. 
-        - If evaluation passed, True is returned. 
-        - If evaluation cannot proceed due to API errors, False is returned. 
-        - If evaluation found mismatch, a table showing the difference is returned to 
-          be displayed in the HTML page. Returns: Tuple[err_message, ?collect_fail_data]
+        """ 
+        When a user submits their model for evaluation, this function checks if the user model matches the reference model 
+        
+        - If evaluation passed, return ``True``  
+        - If evaluation cannot proceed due to API errors, return ``False``
+        - If evaluation found mismatch, a table showing the difference is returned to be displayed in the HTML page. Returns: ``Tuple[err_message, ?collect_fail_data]``
+        
+        Results are returned to :view:`questioner.views.check_model`
         """
         curr_step = Question_Step_PS.objects.filter(question=self).get(step_number=step)
         response = curr_step.evaluate(user)
@@ -1123,10 +1262,10 @@ class Question_MSPS(Question):
         
 
     def give_up(self, user: AuthUser, step: int) -> Tuple[str, bool]:
-        """ After at least one failed attempt, the user is given the option to 
-        give up, and reference part(s) will be derived imported to the user's 
-        working document along with instructions
-        Returns: Tuple[message, ?collect_data]
+        """ 
+        After at least one failed attempt, the user is given the option to give up, and reference part(s) will be derived imported to the user's working document along with instructions
+        
+        Returns: ``Tuple[message, ?collect_data]`` to be used in :view:`questioner.views.solution`
         """
         curr_step = Question_Step_PS.objects.filter(question=self).get(step_number=step)
         temp_mid = get_current_microversion(user)
@@ -1159,8 +1298,16 @@ class Question_MSPS(Question):
         return msg, False 
 
     def show_result(self, user: AuthUser, show_best=False) -> str:
-        """ Other than the default time spent comparison, also plot the 
-        distribution of features used to complete the question. 
+        """ 
+        Other than the default time spent comparison, also plot the distribution of features used to complete the question 
+        
+        **Arguments:**
+        
+        - ``show_best``: ``True`` if user access results from :view:`questioner.views.index` to see their best historical performance; ``False`` otherwise to see performance of current attempt only 
+        
+        **Return:**
+        
+        Formatted string of HTML code returned to :view:`questioner.views.complete`
         """
         if show_best: 
             my_fea_cnt = sorted(user.completed_history[str(self)], key=lambda x:x[1])[0][2] 
@@ -1197,22 +1344,36 @@ class Question_MSPS(Question):
 
     
 class Question_Step_PS(models.Model): 
-    question = models.ForeignKey(Question_MSPS, on_delete=models.CASCADE)
-    step_number = models.PositiveIntegerField(default=1)
-    eid = models.CharField("Onshape element ID", max_length=40, default=None)
+    """
+    Question steps for MSPS questions 
+    
+    Every MSPS contains one or more steps, and every one :model:`questioner.Question_Step_PS` corresponds to one step 
+    """
+    question = models.ForeignKey(
+        Question_MSPS, on_delete=models.CASCADE, help_text="The parent MSPS question"
+    )
+    step_number = models.PositiveIntegerField(
+        default=1, help_text="Positive step number of the question (index starts from 1)"
+    )
+    eid = models.CharField(
+        "Onshape element ID", max_length=40, default=None, 
+        help_text="The Onshape element with the reference model"
+    )
     mid = models.CharField(
         max_length=40, default=None, null=True, 
-        help_text="Last microversion of the reference element's version"
+        help_text="Last microversion of the reference element's version, required for derive import"
     )
     os_drawing_eid = models.CharField(
-        "Onshape drawing element ID of the step", 
-        max_length=40, null=True
+        "Onshape drawing element ID of the step", max_length=40, null=True, 
+        help_text="Element ID of the native Onshape drawing that users can open in a new tab; this can be the same ID to the one used for the question or other steps if the same drawing is used"
     )
     jpeg_drawing_eid = models.CharField(
-        "JPEG drawing element ID of the step", 
-        max_length=40, null=True
+        "JPEG drawing element ID of the step", max_length=40, null=True, 
+        help_text="Element ID of an exported JPEG image of the question's drawing, stored as an Onshape element in the same question document (portrait rather than landscape is preferred); this can be the same ID to the one used for the question or other steps if the same drawing is used"
     )
-    drawing_jpeg = models.TextField(null=True)
+    drawing_jpeg = models.TextField(
+        null=True, help_text="The exported JPEG image of the question stored as a base64 JPEG image"
+    )
     additional_instructions = models.TextField(
         null=True, default=None, blank=True, 
         help_text="(Opitonal) additional instructions for this step"
@@ -1222,7 +1383,7 @@ class Question_Step_PS(models.Model):
     model_mass = models.JSONField(default=list, null=True, help_text="Mass in kg")
     model_volume = models.JSONField(default=list, null=True, help_text="Volume in m^3")
     model_SA = models.JSONField(default=list, null=True, help_text="Surface area in m^2")
-    model_inertia = models.JSONField(default=list, null=True, help_text="3 element array describing the Principal Interia") 
+    model_inertia = models.JSONField(default=list, null=True, help_text="(List of) ordered list of 3 principal interia in kg.m^2") 
     model_name = models.JSONField(default=list, null=True, help_text="Part names")
     
     class Meta: 
@@ -1232,12 +1393,14 @@ class Question_Step_PS(models.Model):
         return str(self.question) + "_" + str(self.step_number)
 
     def evaluate(self, user: AuthUser) -> Union[str, bool]:
-        """ Given the user submiting a model for evaluation, this function checks if the 
-        user model matches the reference model. 
-        - If evaluation passed, True is returned. 
-        - If evaluation cannot proceed due to API errors, False is returned. 
+        """ When a user submits their model for evaluation, this function checks if the user model matches the reference model 
+        
+        - If evaluation passed, return ``True``  
+        - If evaluation cannot proceed due to API errors, return ``False``
         - If evaluation found mismatch, error message is returned to 
           be displayed in the HTML page. 
+        
+        Results are returned to :model:`questioner.Question_MSPS`
         """
          # Get info from user model 
         feature_list = get_feature_list(user)
@@ -1333,9 +1496,11 @@ class Question_Step_PS(models.Model):
             return eval_correct 
 
     def give_up(self, user: AuthUser) -> bool: 
-        """ When give up, import the derived reference part of the step to the 
-        user's working document 
-        Return True if successful, False otherwise 
+        """ 
+        When give up, derived import the reference part of the step to the 
+        user's working document
+         
+        Return ``True`` to :model:`questioner.Question_MSPS` if successful; ``False`` otherwise 
         """
         response = insert_ps_to_ps(
             user, self.question.did, self.question.vid, self.eid, self.mid, 
@@ -1347,6 +1512,9 @@ class Question_Step_PS(models.Model):
             return False 
         
     def save(self, *args, **kwargs):
+        """
+        Default actions when a question is saved, either first added or updated afterward 
+        """
         if not self.mid: 
             ele_info = get_elements(
                 self.question.did, self.question.vid, 

@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'questioner.apps.QuestionerConfig', 
     'data_miner.apps.DataMinerConfig', 
     'django.contrib.admin',
+    'django.contrib.admindocs', 
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',

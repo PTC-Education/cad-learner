@@ -60,6 +60,19 @@ def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool:
 
 # Create your views here.
 def home(request: HttpRequest, os_user_id=None):
+    """ 
+    The home page that can be accessed either logged in in-app or as a standard URL without login information. 
+    
+    The page documents more extensive user instructions, some technical tips, and a documentation on all data collections from the users. 
+
+    **Arguments:**
+        
+    - ``os_user_id``: (Optional) identify the :model:`questioner.AuthUser` model with the user's login information.
+
+    **Template:**
+
+    :template:`questioner/home.html`
+    """
     context = {"user": None} 
     if os_user_id: 
         curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
@@ -68,12 +81,18 @@ def home(request: HttpRequest, os_user_id=None):
 
 
 def login(request: HttpRequest): 
-    """ When the app extension is first opened, this view should 
-    be called. 
-    -   If user is within the allowed modelling time span, redirects 
-        to the modelling page to continue 
-    -   If new user, redirects the user to initiate Onshape's OAuth
-        authorization 
+    """ 
+    When the app extension is first opened, this view should be called. 
+
+    **Context:**
+    
+    If new user, redirects the user to initiate Onshape's OAuth authorization. Once authenticated, the user will be redirected back to :view:`questioner.views.authorize`.  
+    
+    - A new :model:`questioner.AuthUser` model will be created for the new user with the user's ``os_user_id``. 
+    
+    - If the user already exists, new Onshape working environment IDs will be recorded. 
+    
+    If user is modelling and still within the allowed modelling time span and the same working space, redirects the user directly to the modelling page (:view:`questioner.views.model`) of the question to continue. 
     """
     if request.GET.get("wvm") != 'w': 
         return HttpResponse("Please relaunch this app in the main workspace or create a branch from the left panel to start modelling ...")
@@ -123,9 +142,10 @@ def login(request: HttpRequest):
 
 
 def authorize(request: HttpRequest): 
-    """ When the user authorizes the OAuth integration, Onshape's OAuth 
-    authorization page will redirect the user to this page, as registered 
-    as the redirect URL. 
+    """ 
+    When the user authorizes the OAuth integration, Onshape's OAuth authorization page will redirect the user to this page, as registered as the redirect URL. 
+    
+    Once all necessary registration of the returned tokens is done by the app, the user will be redirected to :view:`questioner.views.index`. 
     """
     try: 
         auth_code = request.GET.get('code')
@@ -166,9 +186,22 @@ def authorize(request: HttpRequest):
 
 
 def index(request: HttpRequest, os_user_id: str): 
-    """ The index view of the app. 
-    It outlines all instructions and list all available practice models 
-    in categories of difficulties. 
+    """ 
+    The index view of the app that presents all available questions. 
+    
+    **Context:**
+    
+    It outlines all instructions and lists all available questions (:model:`questioner.Question`) with filters of categories in difficulties and types. 
+    
+    If the user is a reviewer, unpublished questions are also presented with an additional filter of availability. 
+    
+    **Arguments:**
+    
+    - ``os_user_id``: identify the :model:`questioner.AuthUser` model with the user's login information and reviewer status. 
+    
+    **Template:**
+    
+    :template:`questioner/index.html`
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
 
@@ -181,10 +214,26 @@ def index(request: HttpRequest, os_user_id: str):
 
 
 def model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, initiate: int, step=1): 
-    """ The view that the users see when working on a question. 
-    It provides all necessary information and instructions for the 
-    question. When the user finishes, they should be able to submit 
-    and check if model is correct. 
+    """ 
+    The view that the users see when working on a question. 
+    
+    **Context:**
+    
+    It initiates a question and provides all necessary information and instructions for the question. 
+    
+    When the user finishes, they should be able to submit for evaluation of model correctness, which redirects to :view:`questioner.check_model`. 
+    
+    **Arguments:**
+    
+    - ``question_type``: one of the supported question type model inheriting :model:`questioner.Question`  
+    - ``question_id``: the unique ID of the question 
+    - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile 
+    - ``initiate``: 1 (True) if starting (initiating) a new question; 0 (False) if reopening the Onshape extension panel while modelling 
+    - ``step``: only applicable to multi-step questions (index starts from 1)
+    
+    **Template:**
+    
+    :template:`questioner/modelling.html`
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     if question_type not in Q_Type_Dict.keys(): 
@@ -274,10 +323,28 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
 
 
 def check_model(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, step=1): 
-    """ When a user submits a model, API calls are made to check if the 
+    """ 
+    When a user submits a model, API calls are made to check if the 
     model is dimensionally correct and placed in proper orientation. 
-    If the model is correct, redirect to the complete page. 
-    If not correct, redirect back to the model page to ask for modifications. 
+    
+    **Context:**
+    
+    If the model is correct, redirect to :view:`questioner.complete`. 
+    
+    If not correct, re-render the modelling page with evaluation feedback and ask for modifications before re-submission. 
+    
+    - User is also then given the option to give-up, which redirects them to :view:`questioner.solution`. 
+    
+    **Arguments:**
+    
+    - ``question_type``: one of the supported question type model inheriting :model:`questioner.Question`  
+    - ``question_id``: the unique ID of the question 
+    - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile 
+    - ``step``: only applicable to multi-step questions (index starts from 1)
+    
+    **Template:**
+    
+    :template:`questioner/modelling.html`
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     if question_type not in Q_Type_Dict.keys(): 
@@ -335,11 +402,28 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
 
 
 def solution(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, step=1): 
-    """ If a user gives up on the problem and wants to see the solution, 
-    the reference model should be presented to the user in some forms 
-    (defined differently in each of the question model).
-    Corresponding instructions should also be shown to teach the user 
-    how to use the reference model to find mismatched geometries, if needed. 
+    """ 
+    If a user gives up on the problem, some form of solution is presented.
+    
+    **Context:**  
+    
+    The reference model should be presented to the user in some forms (defined differently in each of the question model).
+    
+    - Reference model is automatically derived imported into user's working space for questions in part studios. 
+    - Access to reference document is provided to all questions. 
+    
+    Corresponding instructions should also be shown to teach the user how to use the reference model to find mismatched geometries, if needed. 
+    
+    **Arguments:**
+    
+    - ``question_type``: one of the supported question type model inheriting :model:`questioner.Question`  
+    - ``question_id``: the unique ID of the question 
+    - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile 
+    - ``step``: only applicable to multi-step questions (index starts from 1)
+    
+    **Template:** 
+    
+    :template:`questioner/solution.html` 
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     if question_type not in Q_Type_Dict.keys(): 
@@ -369,10 +453,24 @@ def solution(request: HttpRequest, question_type: str, question_id: int, os_user
 
 
 def complete(request: HttpRequest, question_type: str, question_id: int, os_user_id: str): 
-    """ THe view that the users see when a question is finished. 
-    It provides a brief summary of the user's performance and relative 
-    comparisons to all other users. Users should be able to return to 
-    index page to start more practice. 
+    """ 
+    The view that the users see when a question is finished. 
+    
+    **Context:** 
+    
+    It provides a brief summary of the user's performance and relative comparisons to all other users. 
+    
+    Users should be able to return to :view:`questioner.index` to start new question attempts. 
+    
+    **Arguments:**
+    
+    - ``question_type``: one of the supported question type model inheriting :model:`questioner.Question`  
+    - ``question_id``: the unique ID of the question 
+    - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile 
+    
+    **Template:** 
+    
+    :template:`questioner/complete.html`
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
     if question_type not in Q_Type_Dict.keys(): 
