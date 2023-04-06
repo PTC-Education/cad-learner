@@ -96,7 +96,7 @@
                         <ul>
                             <!-- Question type -->
                             {% if question.question_type == 'MSPS' %}
-                                {% if question.is_multi_part %}
+                                {% if question.question_msps.is_multi_part %}
                                     <li class="q_type">Challenge type: Multi-part Part Studio</li>
                                 {% else %}
                                     <li class="q_type">Challenge type: Single-part Part Studio</li>
