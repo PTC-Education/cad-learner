@@ -1565,7 +1565,13 @@ class Question_Step_PS(models.Model):
                     self.model_volume = mass_prop['bodies']['-all-']['volume'][0]
                     self.model_SA = mass_prop['bodies']['-all-']['periphery'][0]
                     self.model_inertia = mass_prop['bodies']['-all-']['principalInertia']
-        return super().save(*args, **kwargs)
+        msg = super().save(*args, **kwargs)
+        # Update total steps of the question 
+        self.question.total_steps = len(Question_Step_PS.objects.filter(
+            question=self.question
+        ))
+        self.question.save() 
+        return msg 
 
 
 #################### Helper API calls ####################
