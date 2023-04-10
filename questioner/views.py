@@ -11,7 +11,7 @@ from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
 
 from .models import * 
-from data_miner.views import collect_fail_data, collect_final_data
+from data_miner.views import collect_fail_data, collect_final_data, collect_multi_step_data
 
 
 Q_Type_Dict = {
@@ -35,9 +35,6 @@ def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool:
     # After the MAX_ENTRIES_PER_USER, new data are collected for a user iff the time spent 
     # has improvement over the best performance in history by a factor of MIN_IMPROV_REQ  
     MIN_IMPROVE_REQ = 0.2
-    
-    if question.question_type == QuestionType.MULTI_STEP_PS: 
-        return False 
     
     if (
         not question.is_published or 
@@ -363,17 +360,23 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
     if not response: # API error 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
     elif type(response) is bool: # Submission is correct 
+        # Initiate data collection from data miner 
+        if should_collect_data(curr_user, curr_que): 
+            if curr_que.is_multi_step: 
+                collect_multi_step_data(curr_user) 
+            else: 
+                collect_final_data(curr_user, is_failure=False)
+        
         # Check if it's final step already for multi-step problems 
         if curr_que.is_multi_step and step < curr_que.total_steps: 
+            curr_user.end_mid = None 
+            curr_user.save() 
             return HttpResponseRedirect(reverse(
                 "questioner:modelling", args=[
                     question_type, question_id, os_user_id, 0, step + 1
                 ]
             ))
-            
-        # Initiate data collection from data miner 
-        if should_collect_data(curr_user, curr_que): 
-            collect_final_data(curr_user, is_failure=False)
+        
         # Redirect to complete page 
         return HttpResponseRedirect(reverse(
             "questioner:complete", args=[

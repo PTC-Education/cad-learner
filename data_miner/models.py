@@ -137,7 +137,6 @@ class HistoryData_PS(HistoryData):
         self.failed_mesh = get_stl_mesh(user, q_info)
         self.final_query_complete_time = timezone.now() 
         self.save() 
-        return None 
 
     def final_sub_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
         """ 
@@ -161,7 +160,6 @@ class HistoryData_PS(HistoryData):
         self.process_mesh = [(-1, get_stl_mesh(user, q_info))]
         self.final_query_complete_time = timezone.now() 
         self.save() 
-        return None 
 
 
 class HistoryData_AS(HistoryData): 
@@ -207,7 +205,6 @@ class HistoryData_AS(HistoryData):
         }
         self.final_query_complete_time = timezone.now() 
         self.save() 
-        return None 
 
     def final_sub_record(self, user: AuthUser, q_info: Tuple[str]) -> None: 
         """ 
@@ -230,7 +227,50 @@ class HistoryData_AS(HistoryData):
         }
         self.final_query_complete_time = timezone.now() 
         self.save() 
-        return None 
+
+
+class HistoryData_MSPS(HistoryData): 
+    """
+    Inherits :model:`data_miner.HistoryData` and is used for both :model:`questioner.Question_MSPS` questions 
+    
+    Note: due to limit of storage space, only data of successful attempts (both steps and full questions) are recorded for :model:`questioner.Question_MSPS` questions 
+    """
+    step_completion_time = models.JSONField(
+        default=list, null=True, help_text="Time of submission of every completed step of the question"
+    )
+    step_feature_lists = models.JSONField(
+        default=list, null=True, help_text="Correctly submitted feature lists of every step"
+    )
+    step_shaded_views = models.JSONField(
+        default=list, null=True, help_text="Shaded view images of the correctly submitted model after every step"
+    )
+    
+    def collect_data(self, user: AuthUser, q_info: Tuple[str], is_final_step=False) -> None: 
+        """
+        Record data after correct submission of every step of the question 
+        
+        **Arguments:**
+        
+        - ``user``: the :model:`questioner.AuthUser` that stores all user-specific login info with accessing tokens
+        - ``q_info``: ``Tuple[os_domain, did, begin_mid, end_mid, eid, etype]`` at the time of completion 
+        - ``is_final_step``: if this is the final step of the multi-step question 
+        """
+        # Check if user's OAuth token still valid 
+        if user.expires_at <= timezone.now() + timedelta(minutes=10): 
+            user.refresh_oauth_token() 
+        
+        self.step_feature_lists.append(get_feature_list(user, q_info))
+        self.step_shaded_views.append({
+            "FRT": get_shaded_view(user, q_info, view_mat=FRT_VIEW_MAT), 
+            "BLB": get_shaded_view(user, q_info, view_mat=BLB_VIEW_MAT)
+        })
+        self.final_query_complete_time = timezone.now() 
+        
+        # If final step of the question 
+        if is_final_step: 
+            self.microversions_descrip = get_microversions_descrip(user, q_info)
+        
+        self.save() 
 
 
 #################### Helper API calls ####################
