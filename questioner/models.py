@@ -729,7 +729,7 @@ class Question_MPPS(Question):
             return False 
         else: 
             # Store the import derived feature ID for evaluation 
-            user.add_field = {"Cached_Derived_ID": response}
+            user.add_field["Cached_Derived_ID"] = response
             user.save()
             return True
 
@@ -999,11 +999,9 @@ class Question_ASMB(Question):
         rp2 = get_assembly_definition(user, includeMateFeatures=False)
         
         if rp1 and rp2: 
-            user.add_field = {
-                "Cached_Assembly_IDs": [
-                    instance['id'] for instance in rp2['rootAssembly']['instances']
-                ]
-            }
+            user.add_field["Cached_Assembly_IDs"] = [
+                instance['id'] for instance in rp2['rootAssembly']['instances']
+            ]
             user.save() 
         return rp1 and rp2 
         
@@ -1234,7 +1232,7 @@ class Question_MSPS(Question):
             return False 
         else: 
             # Store the import derived feature ID for evaluation 
-            user.add_field = {"Cached_Derived_ID": response}
+            user.add_field["Cached_Derived_ID"] = response
             user.save()
             return True
 
@@ -1253,6 +1251,8 @@ class Question_MSPS(Question):
         if not response: # API call failed 
             return False 
         elif type(response) is bool: # pass the evaluation 
+            user.end_mid = get_current_microversion(user)
+            user.save() 
             return True 
         else: # failed the evaluation  
             if not user.end_mid: # first failure 
@@ -1694,7 +1694,7 @@ def get_feature_list(user: AuthUser) -> Any:
         return None 
 
 
-def get_current_microversion(user: AuthUser) -> Union[str, None]: 
+def get_current_microversion(user: AuthUser) -> Optional[str]: 
     """ Get the current microversion of the user's working document 
     """
     response = requests.get(
