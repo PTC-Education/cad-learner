@@ -51,6 +51,12 @@ If unnecessary or unused packages are installed or added to the `requirements.tx
 1. First run `pip uninstall xxx` in the virtual environment to uninstall the package. 
 2. Run `pip freeze > requirements.txt` to update the requirement file. 
 
+When new packages are used by other contributors and added to the `requirements.txt`, or when packages are upgraded to newer versions, you may want to update/upgrade your local development environment: 
+
+1. Make sure you pull the updated changes to your local development environment. 
+2. In the virtual environment, run `pip install -r requirements.txt` to install all the packages (and versions) specified in the `requirements.txt` file. Packages that are already installed (and up-to-date) will not be installed with duplicates. 
+    - For security reasons, you may sometimes need to add `--trusted-host pypi.org --trusted-host files.pythonhosted.org` to the end of the command above. 
+
 ### Manually modify database 
 
 While changes to some fields and entries of the database are locked or forbidden through the user interface of the app, changes can be made manually through the shell. This can be done for both the local database and the database in the cloud. However, this should be done with extra caution! 

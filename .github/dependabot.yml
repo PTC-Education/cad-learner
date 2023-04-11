@@ -8,11 +8,7 @@ updates:
   - package-ecosystem: "pip" 
     directory: "/" # File stored in repository root
     schedule:
-      # Check for updates every week at 9am New York time 
-      interval: "weekly"
-      day: "tuesday"
-      time: "09:00"
-      timezone: "America/New_York"
+      # Check for updates on the first day of every month 
+      interval: "monthly"
     reviewers: 
-      - "Felix-Deng"
       - "matthewlouismueller"
