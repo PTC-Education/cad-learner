@@ -5,6 +5,9 @@
         <link rel="stylesheet" href="{% static 'questioner/modelling.css' %}">
         <!-- Load pop-up alert when user trying to go back to index while modelling -->
         <script src="{% static 'questioner/modelling.js' %}" type="text/javascript"></script>
+        <!-- Load loading_modelling function to enable loading screen -->
+        <script src="{% static 'questioner/loading.js' %}" type="text/javascript
+        "></script>
     </head>
     <body>
         <div id="navbar">
@@ -14,17 +17,17 @@
                 <!-- Submit/Re-submit for evaluation -->
                 {% if model_comparison or user.end_mid %} <!-- Failed at least once -->
                     {% if question.is_multi_step %}
-                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id step.step_number %}" title="Check your model against the reference again">Re-submit</a></li>
-                        <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id step.step_number %}" onclick="return give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id step.step_number %}" title="Check your model against the reference again" onclick="loading_modelling()">Re-submit</a></li>
+                        <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id step.step_number %}" onclick="give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
                     {% else %}
-                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference again">Re-submit</a></li>
-                        <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}" onclick="return give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference again" onclick="loading_modelling()">Re-submit</a></li>
+                        <li><a href="{% url 'questioner:solution' question.question_type question.question_id user.os_user_id %}" onclick="give_up_confirm_alert()" title="This button imports the reference model into your part studio for direct comparison">Give Up</a></li>
                     {% endif %}
                 {% else %}
                     {% if question.is_multi_step %}
-                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id step.step_number %}" title="Check your model against the reference">Submit</a></li>
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id step.step_number %}" title="Check your model against the reference" onclick="loading_modelling()">Submit</a></li>
                     {% else %}
-                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference">Submit</a></li>
+                        <li><a href="{% url 'questioner:check' question.question_type question.question_id user.os_user_id %}" title="Check your model against the reference" onclick="loading_modelling()">Submit</a></li>
                     {% endif %}
                 {% endif %}
                 <!-- View CAD drawing in new tab -->

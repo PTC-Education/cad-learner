@@ -5,11 +5,14 @@
         <link rel="stylesheet" href="{% static 'questioner/index.css' %}">
         <!-- Load search_filter functions for the search menu, difficulty filtering, and question type filtering -->
         <script src="{% static 'questioner/search_filter.js' %}" type="text/javascript"></script>
+        <!-- Load loading_index function to enable loading screen -->
+        <script src="{% static 'questioner/loading.js' %}" type="text/javascript
+        "></script>
     </head>
     <body>
         <!-- Load app logo at the top of the page -->
         <div id="logo">
-            <img id="logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo" width="95%"/>
+            <img id="app_logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo" width="95%"/>
         </div>
         <!-- Print out error message if any -->
         <div>
@@ -93,7 +96,7 @@
                         <h3>&nbsp;&nbsp;&nbsp;&nbsp;{{ question.question_name }}</h3>
                     </button>
                     <div class="panel">
-                        <ul>
+                        <ul class="info_list">
                             <!-- Question type -->
                             {% if question.question_type == 'MSPS' %}
                                 {% if question.question_msps.is_multi_part %}
@@ -136,7 +139,7 @@
                         {% if user.etype == question.allowed_etype or question.allowed_etype == "all" %}
                             {% if question|stringformat:"s" in user.completed_history.keys %}
                                 <p>You have completed this challenge before ...</p>
-                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id 1 %}">
+                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id 1 %}" onsubmit="loading_index()">
                                     <input type="submit" value="Retry this question"/>
                                 </form>
                                 <form action="{% url 'questioner:complete' question.question_type question.question_id user.os_user_id %}">
@@ -144,7 +147,7 @@
                                     <input type="submit" value="View best performance"/>
                                 </form>
                             {% else %}
-                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id 1 %}">
+                                <form action="{% url 'questioner:modelling' question.question_type question.question_id user.os_user_id 1 %}" onsubmit="loading_index()">
                                     <input type="submit" value="Start this question"/>
                                 </form>
                             {% endif %}
