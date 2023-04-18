@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'data_miner/dashboard.css' %}">
+        <script src="{% static 'data_miner/dropdown.js' %}" type="text/javascript
+        "></script>
+    </head>
+    <body>
+        <!-- Load app logo at the top of the page -->
+        <div id="logo">
+            <img id="logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo"/>
+        </div>
+        <br /><br />
+        <!-- Options to view data for specific questions -->
+        <h3>Select a question to view more analytics:</h3>
+        <div class="dropdown">
+            <button onclick="dropdownFunc()" class="dropbtn">Question</button>
+            <div id="myDropdown" class="dropdown-content">
+                {% for question in all_questions %}
+                    <a href="{% url 'data_miner:question_dashboard' question.question_id %}">{{ question.question_name }} ({{ question.get_question_type_display }})</a>
+                {% endfor %}
+            </div>
+        </div>
+        <br /><br />
+        <!-- General counts presented in boxes -->
+        <div class="box_container">
+            <div class="box">
+                Total Question Attempts: &nbsp<b>{{ attempt_total }}</b>
+            </div>
+            <div class="box">
+                Unique Users with Question Attempts: &nbsp<b>{{ user_attempt_total }}</b>
+            </div>
+            <div class="box">
+                Unique Users with App Logins: &nbsp<b>{{ user_login_total }}</b>
+            </div>
+        </div>
+        <!-- Distribution plots -->
+        <img src="{{ succ_fail_cnt }}" alt="" class="center"/> 
+        <br /><br />
+        <img src="{{ time_spent }}" alt="" class="center"/> 
+        <br /><br />
+        <img src="{{ features_used }}" alt="" class="center"/> 
+    </body>
+</html>

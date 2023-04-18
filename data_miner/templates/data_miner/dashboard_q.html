@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'data_miner/dashboard_q.css' %}">
+    </head>
+    <body>
+        <!-- Load app logo at the top of the page -->
+        <div id="logo">
+            <img id="logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo"/>
+        </div>
+        <!-- Question info -->
+        <h1>{{ question.question_name }}</h1>
+        <h3>Question Type: {{ question.get_question_type_display }}</h3>
+        <h3>Question Difficulty: {{ question.get_difficulty_display }}</h3>
+        <!-- Return to overview -->
+        <form action="{% url 'data_miner:dashboard' %}">
+            <input type="submit" value="Return to Overview"/>
+        </form>
+        <!-- General counts presented in boxes -->
+        <div class="box_container">
+            <div class="box">
+                Total Question Attempts: &nbsp<b>{{ attempt_total }}</b>
+            </div>
+            {% if additional_counts %}
+                {{ additional_counts|safe }}
+            {% endif %}
+        </div> 
+        <!-- Plots -->
+        <div>
+            <img src="{{ time_spent }}" alt="" class="center"/> 
+            <br /><br />
+            <img src="{{ feature_cnt }}" alt="" class="center"/> 
+            <br /><br />
+            {% if additional_plots %}
+                {{ additional_plots|safe }}
+            {% endif %}
+        </div>
+    </body>
+</html>
