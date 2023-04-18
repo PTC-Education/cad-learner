@@ -20,5 +20,6 @@ urlpatterns = [
     path('admin/doc/', include('django.contrib.admindocs.urls')), 
     path('admin/', admin.site.urls),
     path('django-rq/', include('django_rq.urls')), 
-    path('', include('questioner.urls'))
+    path('', include('questioner.urls')), 
+    path('', include('data_miner.urls'))
 ]
