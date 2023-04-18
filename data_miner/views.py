@@ -125,9 +125,9 @@ def dashboard(request: HttpRequest):
         )
         temp_times = [] 
         for entry in temp: 
-            temp_times.append(
-                (entry.time_of_completion - entry.start_time).total_seconds() / 60
-            )
+            temp_time = (entry.time_of_completion - entry.start_time).total_seconds() / 60
+            if temp_time <= 4000 / 60: 
+                temp_times.append(temp_time)
         y_time.append(temp_times)
     
     fig_time_dist = Figure(figsize=(8, 6)) 
