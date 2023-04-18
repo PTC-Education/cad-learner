@@ -186,7 +186,24 @@ def dashboard_question(request: HttpRequest, qid: int):
     context['additional_counts'] = ""
     context['additional_plots'] = ""
     if question.question_type == QuestionType.MULTI_STEP_PS: 
-        pass 
+        total_steps = Question_MSPS.objects.get(question_id=qid).total_steps
+        context['additional_counts'] += '''
+        <div class="box">
+            Successful Full Attempts (completed last step): &nbsp<b>{}</b>
+        </div>
+        <div class="box">
+            Successful Partial Attempts (before reaching last step): &nbsp<b>{}</b>
+        </div>
+        '''.format(
+            sum([
+                1 if len(entry.step_completion_time) == total_steps else 0 
+                for entry in q_records
+            ]), 
+            sum([
+                1 if entry.step_completion_time and len(entry.step_completion_time) < total_steps else 0 
+                for entry in q_records
+            ])
+        )
     else: 
         context['additional_counts'] += '''
         <div class="box">
@@ -223,11 +240,11 @@ def dashboard_question(request: HttpRequest, qid: int):
     for entry in q_records.filter(
         is_final_failure=False, time_of_completion__isnull=False
     ): 
-        y_time.append(
-            (entry.time_of_completion - entry.start_time).total_seconds() / 60
-        )
+        temp_time = (entry.time_of_completion - entry.start_time).total_seconds() / 60
+        if temp_time <= 4000 / 60: 
+            y_time.append(temp_time)
     
-    time_dist = Figure(figsize=(8, 6)) 
+    time_dist = Figure(figsize=(6, 4)) 
     ax = time_dist.add_subplot(1, 1, 1)
     ax.hist(y_time)
     ax.set_xlabel("Time Spent on the Question (mins)")
@@ -237,7 +254,7 @@ def dashboard_question(request: HttpRequest, qid: int):
     
     # Feature counts of the question 
     fea_cnt = calc_feature_cnt(qid)
-    fea_dist = Figure(figsize=(8, 6))
+    fea_dist = Figure(figsize=(6, 4))
     ax = fea_dist.add_subplot(1, 1, 1)
     ax.hist(fea_cnt)
     ax.set_xlabel("Number of Features Used in the Question")

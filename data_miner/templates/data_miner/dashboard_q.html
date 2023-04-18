@@ -7,12 +7,14 @@
     <body>
         <!-- Load app logo at the top of the page -->
         <div id="logo">
-            <img id="logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo"/>
+            <img src="{% static 'questioner/images/logo.svg' %}" alt="app_logo"/>
         </div>
         <!-- Question info -->
         <h1>{{ question.question_name }}</h1>
         <h3>Question Type: {{ question.get_question_type_display }}</h3>
         <h3>Question Difficulty: {{ question.get_difficulty_display }}</h3>
+        <img src="{{ question.thumbnail }}" alt="q_thumbnail"/>
+        <br /><br />
         <!-- Return to overview -->
         <form action="{% url 'data_miner:dashboard' %}">
             <input type="submit" value="Return to Overview"/>
