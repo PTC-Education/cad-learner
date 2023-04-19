@@ -3,12 +3,13 @@ import base64
 from typing import List 
 from datetime import datetime
 import numpy as np 
+import cv2 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import django_rq
 from django.shortcuts import render 
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest
 from django.utils import timezone
 from django.core.exceptions import ObjectDoesNotExist
 
@@ -35,6 +36,51 @@ def convert_plot_to_str(plot) -> str:
     img_output.seek(0)
     img_data = base64.b64encode(img_output.read())
     return "data:image/png;base64," + str(img_data)[2:-1]
+
+
+def calc_time_spent(
+    qid: int, all: bool, is_final_failure=False, all_success=False, has_failed_attempts=False
+) -> List[float]: 
+    """
+    Given a ``question_id`` for a :model:`questioner.Question` object, return a list of the time spent by all user attempts on the question in minutes 
+    
+    **Arguments:** 
+    
+    - ``all``: if True, time spent of all attempts are returned, and other trailing arguments are ignored 
+    - ``is_final_failure``: True if filter by successful attempts only; False otherwise 
+    - ``all_success``: True if filter by all successful attempts; False to consider ``has_failed_attempts`` 
+    - ``has_failed_attempts``: if True, no failed submissions are recorded; i.e., got the question right at the first attempt (not available for multi-step questions)
+    """
+    if all: 
+        temp_set = HistoryData.objects.filter(
+            question_id=qid, time_of_completion__isnull=False
+        )
+    elif is_final_failure: 
+        temp_set = HistoryData.objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=True
+        )
+    elif all_success: 
+        temp_set = HistoryData.objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=False 
+        )
+    elif has_failed_attempts: 
+        temp_set = D_Type_Dict[
+            Question.objects.get(question_id=qid).question_type
+        ].objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=False
+        )
+    else: 
+        temp_set = D_Type_Dict[
+            Question.objects.get(question_id=qid).question_type
+        ].objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=True
+        )
+    all_times = [] 
+    for entry in temp_set: 
+        curr_time = (entry.time_of_completion - entry.start_time).total_seconds() 
+        if curr_time <= 4000: 
+            all_times.append(curr_time / 60) # in minutes 
+    return all_times
 
 
 def calc_feature_cnt(qid: int) -> List[int]: 
@@ -70,6 +116,97 @@ def calc_feature_cnt(qid: int) -> List[int]:
             )
     return temp_cnt
     
+
+def shaded_view_cluster(qid: int, select_img="FRT") -> str: 
+    """
+    Given a ``question_id`` for a :model:`questioner.Question` object, this function analyze all the captured shaded view images of the final workspace. This function automatically clusters all the images based on the similarity (MSE difference) between images. 
+    
+    A formatted table presenting the clustering results is returned. 
+    
+    ``select_img``: ``"FRT"`` or ``"BLB"`` 
+    """
+    def image_error(img1, img2):
+        """ Calculate the mean squared error (MSE) between two images """
+        def readb64_img(uri):
+            """ Clean the raw image from html format """
+            encoded_data = uri.split(',')[1]
+            nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            return img
+    
+        # load the input images
+        img1 = readb64_img(img1)
+        img2 = readb64_img(img2)
+        # convert the images to grayscale
+        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+        img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+        # Compute MSE between two images
+        h, w = img1.shape
+        diff = cv2.subtract(img1, img2)
+        err = np.sum(diff**2)
+        mse = err/(float(h*w))
+        return mse, diff
+        
+    # Get all images for the question 
+    imgs = [] 
+    q_type = Question.objects.get(question_id=qid).question_type
+    records = D_Type_Dict[q_type].objects.filter(question_id=qid)
+    for entry in records: 
+        if q_type == QuestionType.MULTI_STEP_PS: 
+            if len(entry.step_shaded_views) == Question_MSPS.objects.get(question_id=qid).total_steps: 
+                imgs.append(entry.step_shaded_views[-1][select_img])
+        else: 
+            if entry.final_shaded_views: 
+                imgs.append(entry.final_shaded_views[select_img])
+    # Calculate MSE between images 
+    err_mat = np.identity(len(imgs))
+    for i in range(len(imgs)): 
+        for j in range(i + 1, len(imgs)): 
+            err_mat[i][j] = image_error(imgs[i], imgs[j])[0]
+    # Cluster images based on MSE values 
+    imgs_ind = list(range(len(imgs))) 
+    clusters = [] 
+    while imgs_ind: 
+        curr_ind = imgs_ind.pop(0)
+        clusters.append([curr_ind])
+        curr_cluster_size = len(clusters)
+        for item in imgs_ind.copy(): 
+            if err_mat[curr_ind][item] <= 10: 
+                imgs_ind.remove(item)
+                clusters[curr_cluster_size-1].append(item)
+    clusters.sort(key=lambda x:len(x), reverse=True)
+    # Format results to be returned 
+    result = '''
+    <table>
+        <tr>
+            <th>View No.</th>
+            <th>Isometric View of the Final Model</th>
+            <th>Number of Attempts with the Same View</th>
+        </tr>
+    '''
+    for i, cluster in enumerate(clusters): 
+        # if len(cluster) == 1: 
+        #     result += f'''
+        #     <tr>
+        #         <td>{i+1}</td>
+        #         <td>Others</td>
+        #         <td>{len(clusters) - i}</td>
+        #     </tr>
+        #     '''
+        #     break 
+        if q_type == QuestionType.MULTI_STEP_PS: 
+            img = records[cluster[0]].step_shaded_views[-1][select_img]
+        else: 
+            img = records[cluster[0]].final_shaded_views[select_img]
+        result += f'''
+        <tr>
+            <td>{i+1}</td>
+            <td><img src="{img}" alt=""/></td>
+            <td>{len(cluster)}</td>
+        </tr>
+        '''
+    return result + "</table>"
+
 
 def dashboard(request: HttpRequest): 
     """
@@ -118,18 +255,7 @@ def dashboard(request: HttpRequest):
     context['succ_fail_cnt'] = convert_plot_to_str(fig_cnt_bar)
     
     # Time spent distributtion on all questions 
-    y_time = []
-    for i, qid in enumerate([q.question_id for q in context['all_questions']]): 
-        temp = HistoryData.objects.filter(
-            question_id=qid, is_final_failure=False, time_of_completion__isnull=False 
-        )
-        temp_times = [] 
-        for entry in temp: 
-            temp_time = (entry.time_of_completion - entry.start_time).total_seconds() / 60
-            if temp_time <= 4000 / 60: 
-                temp_times.append(temp_time)
-        y_time.append(temp_times)
-    
+    y_time = [calc_time_spent(q.question_id, all=True) for q in context['all_questions']]
     fig_time_dist = Figure(figsize=(8, 6)) 
     ax = fig_time_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_time, positions=np.arange(len(y_time)))
@@ -145,7 +271,6 @@ def dashboard(request: HttpRequest):
     
     # Number of features used in all questions 
     y_cnt = [calc_feature_cnt(q.question_id) for q in context['all_questions']] 
-    
     fea_use_dist = Figure(figsize=(8, 6)) 
     ax = fea_use_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_cnt, positions=np.arange(len(y_cnt)))
@@ -184,7 +309,6 @@ def dashboard_question(request: HttpRequest, qid: int):
     
     # General counts for the question 
     context['additional_counts'] = ""
-    context['additional_plots'] = ""
     if question.question_type == QuestionType.MULTI_STEP_PS: 
         total_steps = Question_MSPS.objects.get(question_id=qid).total_steps
         context['additional_counts'] += '''
@@ -234,16 +358,10 @@ def dashboard_question(request: HttpRequest, qid: int):
                 time_of_completion__isnull=True, first_failed_time__isnull=False 
             ))
         )
-        
-    # Time spent distribution of the question 
-    y_time = []
-    for entry in q_records.filter(
-        is_final_failure=False, time_of_completion__isnull=False
-    ): 
-        temp_time = (entry.time_of_completion - entry.start_time).total_seconds() / 60
-        if temp_time <= 4000 / 60: 
-            y_time.append(temp_time)
     
+    context['additional_plots'] = ""
+    # Time spent distribution of the question 
+    y_time = calc_time_spent(qid, all=True)
     time_dist = Figure(figsize=(6, 4)) 
     ax = time_dist.add_subplot(1, 1, 1)
     ax.hist(y_time)
@@ -251,6 +369,56 @@ def dashboard_question(request: HttpRequest, qid: int):
     ax.set_ylabel("Number of Users")
     time_dist.tight_layout()
     context['time_spent'] = convert_plot_to_str(time_dist) 
+    
+    # Time spent comparison of different outcomes of the question 
+    if question.question_type == QuestionType.MULTI_STEP_PS: 
+        total_steps = Question_MSPS.objects.get(question_id=qid).total_steps
+        records = HistoryData_MSPS.objects.filter(step_completion_time__isnull=False)
+        step_time = [[] for _ in range(total_steps)]
+        for entry in records: 
+            for i, t in enumerate(entry.step_completion_time): 
+                if i == 0: 
+                    step_time[i].append(
+                        (datetime.fromisoformat(t) - entry.start_time.replace(tzinfo=None)).total_seconds() / 60
+                    )
+                else: 
+                    step_time[i].append(
+                        (datetime.fromisoformat(t) - datetime.fromisoformat(
+                            entry.step_completion_time[i-1]
+                        )).total_seconds() / 60 
+                    )
+                    
+        fig_time_compare = Figure(figsize=(6, 4))
+        ax = fig_time_compare.add_subplot(1, 1, 1)
+        ax.boxplot(step_time, positions=np.arange(len(step_time)))
+        ax.set_xlabel("Step Number of the Question")
+        ax.set_ylabel("Time Spent on Steps (mins)")
+        ax.set_xticks(np.arange(len(step_time)))
+        ax.set_xticklabels([f"Step {i+1}" for i in range(len(step_time))])
+        fig_time_compare.tight_layout()
+        context['time_spent_comparison'] = convert_plot_to_str(fig_time_compare)
+    else: 
+        direct_succ = calc_time_spent(
+            qid, all=False, is_final_failure=False, has_failed_attempts=False
+        )
+        indirect_succ = calc_time_spent(
+            qid, all=False, is_final_failure=False, has_failed_attempts=True
+        )
+        failure = calc_time_spent(qid, all=False, is_final_failure=True)
+        
+        fig_time_compare = Figure(figsize=(6, 4))
+        ax = fig_time_compare.add_subplot(1, 1, 1)
+        ax.boxplot([direct_succ, indirect_succ, failure], positions=np.arange(3))
+        ax.set_xlabel("Question Completion Result")
+        ax.set_ylabel("Time Spent of Challenge (mins)")
+        ax.set_xticks(np.arange(3))
+        ax.set_xticklabels([
+            "Success without\nfailed attempts", 
+            "Success with ≥1\nfailed attempts", 
+            "Failure with give-up"
+        ])
+        fig_time_compare.tight_layout()
+        context['time_spent_comparison'] = convert_plot_to_str(fig_time_compare)
     
     # Feature counts of the question 
     fea_cnt = calc_feature_cnt(qid)
@@ -261,6 +429,11 @@ def dashboard_question(request: HttpRequest, qid: int):
     ax.set_ylabel("Number of Users")
     fea_dist.tight_layout()
     context['feature_cnt'] = convert_plot_to_str(fea_dist) 
+    
+    # Cluster final screen capture of the workspace 
+    if Question.objects.get(question_id=qid).allowed_etype == ElementType.PARTSTUDIO: 
+        if len(HistoryData.objects.filter(question_id=qid)) >= 5: 
+            context['additional_plots'] += shaded_view_cluster(qid)
     
     return render(request, "data_miner/dashboard_q.html", context=context)
 
