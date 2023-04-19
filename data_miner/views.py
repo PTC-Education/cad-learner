@@ -197,7 +197,7 @@ def shaded_view_cluster(qid: int, select_img="FRT") -> str:
         result += f'''
         <tr>
             <td>{i+1}</td>
-            <td><img src="{imgs[i]}" alt=""/></td>
+            <td><img src="{imgs[cluster[0]]}" alt=""/></td>
             <td>{len(cluster)}</td>
         </tr>
         '''
