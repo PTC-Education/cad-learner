@@ -194,14 +194,10 @@ def shaded_view_cluster(qid: int, select_img="FRT") -> str:
         #     </tr>
         #     '''
         #     break 
-        if q_type == QuestionType.MULTI_STEP_PS: 
-            img = records[cluster[0]].step_shaded_views[-1][select_img]
-        else: 
-            img = records[cluster[0]].final_shaded_views[select_img]
         result += f'''
         <tr>
             <td>{i+1}</td>
-            <td><img src="{img}" alt=""/></td>
+            <td><img src="{imgs[i]}" alt=""/></td>
             <td>{len(cluster)}</td>
         </tr>
         '''
