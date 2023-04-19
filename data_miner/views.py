@@ -37,6 +37,51 @@ def convert_plot_to_str(plot) -> str:
     return "data:image/png;base64," + str(img_data)[2:-1]
 
 
+def calc_time_spent(
+    qid: int, all: bool, is_final_failure=False, all_success=False, has_failed_attempts=False
+) -> List[float]: 
+    """
+    Given a ``question_id`` for a :model:`questioner.Question` object, return a list of the time spent by all user attempts on the question in minutes 
+    
+    **Arguments:** 
+    
+    - ``all``: if True, time spent of all attempts are returned, and other trailing arguments are ignored 
+    - ``is_final_failure``: True if filter by successful attempts only; False otherwise 
+    - ``all_success``: True if filter by all successful attempts; False to consider ``has_failed_attempts`` 
+    - ``has_failed_attempts``: if True, no failed submissions are recorded; i.e., got the question right at the first attempt (not available for multi-step questions)
+    """
+    if all: 
+        temp_set = HistoryData.objects.filter(
+            question_id=qid, time_of_completion__isnull=False
+        )
+    elif is_final_failure: 
+        temp_set = HistoryData.objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=True
+        )
+    elif all_success: 
+        temp_set = HistoryData.objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=False 
+        )
+    elif has_failed_attempts: 
+        temp_set = D_Type_Dict[
+            Question.objects.get(question_id=qid).question_type
+        ].objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=False
+        )
+    else: 
+        temp_set = D_Type_Dict[
+            Question.objects.get(question_id=qid).question_type
+        ].objects.filter(
+            question_id=qid, time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=True
+        )
+    all_times = [] 
+    for entry in temp_set: 
+        curr_time = (entry.time_of_completion - entry.start_time).total_seconds() 
+        if curr_time <= 4000: 
+            all_times.append(curr_time / 60) # in minutes 
+    return all_times
+
+
 def calc_feature_cnt(qid: int) -> List[int]: 
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, return a list of the number of features used for all user attempts on the question 
@@ -118,18 +163,7 @@ def dashboard(request: HttpRequest):
     context['succ_fail_cnt'] = convert_plot_to_str(fig_cnt_bar)
     
     # Time spent distributtion on all questions 
-    y_time = []
-    for i, qid in enumerate([q.question_id for q in context['all_questions']]): 
-        temp = HistoryData.objects.filter(
-            question_id=qid, is_final_failure=False, time_of_completion__isnull=False 
-        )
-        temp_times = [] 
-        for entry in temp: 
-            temp_time = (entry.time_of_completion - entry.start_time).total_seconds() / 60
-            if temp_time <= 4000 / 60: 
-                temp_times.append(temp_time)
-        y_time.append(temp_times)
-    
+    y_time = [calc_time_spent(q.question_id, all=True) for q in context['all_questions']]
     fig_time_dist = Figure(figsize=(8, 6)) 
     ax = fig_time_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_time, positions=np.arange(len(y_time)))
@@ -145,7 +179,6 @@ def dashboard(request: HttpRequest):
     
     # Number of features used in all questions 
     y_cnt = [calc_feature_cnt(q.question_id) for q in context['all_questions']] 
-    
     fea_use_dist = Figure(figsize=(8, 6)) 
     ax = fea_use_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_cnt, positions=np.arange(len(y_cnt)))
@@ -184,7 +217,6 @@ def dashboard_question(request: HttpRequest, qid: int):
     
     # General counts for the question 
     context['additional_counts'] = ""
-    context['additional_plots'] = ""
     if question.question_type == QuestionType.MULTI_STEP_PS: 
         total_steps = Question_MSPS.objects.get(question_id=qid).total_steps
         context['additional_counts'] += '''
@@ -234,16 +266,10 @@ def dashboard_question(request: HttpRequest, qid: int):
                 time_of_completion__isnull=True, first_failed_time__isnull=False 
             ))
         )
-        
-    # Time spent distribution of the question 
-    y_time = []
-    for entry in q_records.filter(
-        is_final_failure=False, time_of_completion__isnull=False
-    ): 
-        temp_time = (entry.time_of_completion - entry.start_time).total_seconds() / 60
-        if temp_time <= 4000 / 60: 
-            y_time.append(temp_time)
     
+    context['additional_plots'] = ""
+    # Time spent distribution of the question 
+    y_time = calc_time_spent(qid, all=True)
     time_dist = Figure(figsize=(6, 4)) 
     ax = time_dist.add_subplot(1, 1, 1)
     ax.hist(y_time)
@@ -251,6 +277,56 @@ def dashboard_question(request: HttpRequest, qid: int):
     ax.set_ylabel("Number of Users")
     time_dist.tight_layout()
     context['time_spent'] = convert_plot_to_str(time_dist) 
+    
+    # Time spent comparison of different outcomes of the question 
+    if question.question_type == QuestionType.MULTI_STEP_PS: 
+        total_steps = Question_MSPS.objects.get(question_id=qid).total_steps
+        records = HistoryData_MSPS.objects.filter(step_completion_time__isnull=False)
+        step_time = [[] for _ in range(total_steps)]
+        for entry in records: 
+            for i, t in enumerate(entry.step_completion_time): 
+                if i == 0: 
+                    step_time[i].append(
+                        (datetime.fromisoformat(t) - entry.start_time.replace(tzinfo=None)).total_seconds() / 60
+                    )
+                else: 
+                    step_time[i].append(
+                        (datetime.fromisoformat(t) - datetime.fromisoformat(
+                            entry.step_completion_time[i-1]
+                        )).total_seconds() / 60 
+                    )
+                    
+        fig_time_compare = Figure(figsize=(6, 4))
+        ax = fig_time_compare.add_subplot(1, 1, 1)
+        ax.boxplot(step_time, positions=np.arange(len(step_time)))
+        ax.set_xlabel("Step Number of the Question")
+        ax.set_ylabel("Time Spent on Steps (mins)")
+        ax.set_xticks(np.arange(len(step_time)))
+        ax.set_xticklabels([f"Step {i+1}" for i in range(len(step_time))])
+        fig_time_compare.tight_layout()
+        context['time_spent_comparison'] = convert_plot_to_str(fig_time_compare)
+    else: 
+        direct_succ = calc_time_spent(
+            qid, all=False, is_final_failure=False, has_failed_attempts=False
+        )
+        indirect_succ = calc_time_spent(
+            qid, all=False, is_final_failure=False, has_failed_attempts=True
+        )
+        failure = calc_time_spent(qid, all=False, is_final_failure=True)
+        
+        fig_time_compare = Figure(figsize=(6, 4))
+        ax = fig_time_compare.add_subplot(1, 1, 1)
+        ax.boxplot([direct_succ, indirect_succ, failure], positions=np.arange(3))
+        ax.set_xlabel("Question Completion Result")
+        ax.set_ylabel("Time Spent of Challenge (mins)")
+        ax.set_xticks(np.arange(3))
+        ax.set_xticklabels([
+            "Success without\nfailed attempts", 
+            "Success with ≥1\nfailed attempts", 
+            "Failure with give-up"
+        ])
+        fig_time_compare.tight_layout()
+        context['time_spent_comparison'] = convert_plot_to_str(fig_time_compare)
     
     # Feature counts of the question 
     fea_cnt = calc_feature_cnt(qid)
