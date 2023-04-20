@@ -263,6 +263,16 @@ def dashboard(request: HttpRequest):
     context['user_attempt_total'] = len(HistoryData.objects.values('os_user_id').distinct())
     context['user_login_total'] = len(AuthUser.objects.all())
     
+    # Cumulative number of question attempts 
+    temp = sorted(HistoryData.objects.all(), key=lambda x:x.start_time)
+    cum_cnt_plot = Figure(figsize=(8, 6))
+    ax = cum_cnt_plot.add_subplot(1, 1, 1)
+    ax.plot([e.start_time for e in temp], [i + 1 for i in range(len(temp))])
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Cumulative Number of Question Attempts")
+    cum_cnt_plot.tight_layout() 
+    context['cum_attempt_cnt'] = convert_plot_to_str(cum_cnt_plot)
+    
     # Successful/Failed attempts counts of all questions 
     x = np.arange(len(context['all_questions']))
     y_succ = np.zeros(len(context['all_questions'])) 
@@ -396,6 +406,16 @@ def dashboard_question(request: HttpRequest, qid: int):
         )
     
     context['additional_plots'] = ""
+    # Cumulative number of question attempts 
+    temp = sorted(q_records, key=lambda x:x.start_time)
+    cum_cnt_plot = Figure(figsize=(8, 6))
+    ax = cum_cnt_plot.add_subplot(1, 1, 1)
+    ax.plot([e.start_time for e in temp], [i + 1 for i in range(len(temp))])
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Cumulative Number of Question Attempts")
+    cum_cnt_plot.tight_layout() 
+    context['cum_attempt_cnt'] = convert_plot_to_str(cum_cnt_plot)
+    
     # Time spent distribution of the question 
     y_time = calc_time_spent(qid, all=True)
     time_dist = Figure(figsize=(6, 4)) 
