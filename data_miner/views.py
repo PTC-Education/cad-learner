@@ -1,6 +1,6 @@
 import io 
 import base64
-from typing import List 
+from typing import List, Dict 
 from datetime import datetime
 import numpy as np 
 import cv2 
@@ -202,6 +202,46 @@ def shaded_view_cluster(qid: int, select_img="FRT") -> str:
         </tr>
         '''
     return result + "</table>"
+
+
+def get_feature_counts(qid: int) -> Dict[str, int]: 
+    """
+    Given a ``question_id`` for a :model:`questioner.Question` object, return a dictionary of the features used and the average counts of features used per user attempt on the question 
+    """
+    feature_cnts = {} 
+    que = Question.objects.get(question_id=qid)
+    if que.question_type == QuestionType.MULTI_STEP_PS: 
+        total_steps = Question_MSPS.objects.get(question_id=qid).total_steps
+        for entry in HistoryData_MSPS.objects.filter(question_id=qid): 
+            if len(entry.step_feature_lists) == total_steps: 
+                for fea in entry.step_feature_lists[-1]['features']: 
+                    if fea['featureType'] not in feature_cnts: 
+                        feature_cnts[fea['featureType']] = 0 
+                    feature_cnts[fea['featureType']] += 1 
+    elif que.allowed_etype == ElementType.PARTSTUDIO: 
+        for entry in HistoryData_PS.objects.filter(question_id=qid): 
+            if entry.final_feature_list: 
+                for fea in entry.final_feature_list['features']: 
+                    if fea['featureType'] not in feature_cnts: 
+                        feature_cnts[fea['featureType']] = 0 
+                    feature_cnts[fea['featureType']] += 1 
+    else: # Assembly 
+        for entry in HistoryData_AS.objects.filter(question_id=qid): 
+            if entry.final_assembly_def: 
+                for fea in entry.final_assembly_def['rootAssembly']: 
+                    if fea['featureData']['mateType'] not in feature_cnts: 
+                        feature_cnts[fea['featureData']['mateType']] = 0 
+                    feature_cnts[fea['featureData']['mateType']] += 1 
+                for subass in entry.final_assembly_def['subAssemblies']: 
+                    for fea in subass['features']: 
+                        if fea['featureData']['mateType'] not in feature_cnts: 
+                            feature_cnts[fea['featureData']['mateType']] = 0 
+                        feature_cnts[fea['featureData']['mateType']] += 1 
+    
+    num_attempts = len(HistoryData.objects.filter(question_id=qid))
+    for key, item in feature_cnts.items(): 
+        feature_cnts[key] = round(item / num_attempts, 1)
+    return feature_cnts 
 
 
 def dashboard(request: HttpRequest): 
@@ -430,6 +470,25 @@ def dashboard_question(request: HttpRequest, qid: int):
     if Question.objects.get(question_id=qid).allowed_etype == ElementType.PARTSTUDIO: 
         if len(HistoryData.objects.filter(question_id=qid)) >= 5: 
             context['additional_plots'] += shaded_view_cluster(qid)
+            
+    # Average count of features used per user in the question 
+    if len(HistoryData.objects.filter(question_id=qid)) >= 1: 
+        fea_cnts = get_feature_counts(qid)
+        fea_cnt_table = '''
+        <table>
+            <tr>
+                <th>Feature Type</th>
+                <th>Avg. Num. of Feature Used per Attempt</th>
+            </tr>
+        '''
+        for key, item in sorted(fea_cnts.items(), key=lambda x:x[1], reverse=True): 
+            fea_cnt_table += f'''
+            <tr>
+                <td>{key}</td>
+                <td>{item}</td>
+            </tr>
+            '''
+        context['additional_plots'] += "<br /><br />" + fea_cnt_table + "</table>"
     
     return render(request, "data_miner/dashboard_q.html", context=context)
 
