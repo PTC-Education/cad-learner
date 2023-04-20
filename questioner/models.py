@@ -1825,7 +1825,9 @@ def create_assembly_instance(
     return response.ok 
 
 
-def get_assembly_definition(user: AuthUser, includeMateFeatures=True) -> Any: 
+def get_assembly_definition(
+    user: AuthUser, includeMateFeatures=True, includeMateConnectors=True
+) -> Any: 
     response = requests.get(
         os.path.join(
             user.os_domain, 
@@ -1839,7 +1841,8 @@ def get_assembly_definition(user: AuthUser, includeMateFeatures=True) -> Any:
             "Authorization" : "Bearer " + user.access_token
         }, 
         params={
-            "includeMateFeatures": includeMateFeatures 
+            "includeMateFeatures": includeMateFeatures, 
+            "includeMateConnectors": includeMateConnectors
         }
     )
     if response.ok: 
