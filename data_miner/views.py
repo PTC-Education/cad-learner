@@ -5,6 +5,7 @@ from datetime import datetime
 import numpy as np 
 import cv2 
 from matplotlib.figure import Figure
+import matplotlib.dates as mdates 
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import django_rq
@@ -228,7 +229,7 @@ def get_feature_counts(qid: int) -> Dict[str, int]:
     else: # Assembly 
         for entry in HistoryData_AS.objects.filter(question_id=qid): 
             if entry.final_assembly_def: 
-                for fea in entry.final_assembly_def['rootAssembly']: 
+                for fea in entry.final_assembly_def['rootAssembly']['features']: 
                     if fea['featureData']['mateType'] not in feature_cnts: 
                         feature_cnts[fea['featureData']['mateType']] = 0 
                     feature_cnts[fea['featureData']['mateType']] += 1 
@@ -268,6 +269,8 @@ def dashboard(request: HttpRequest):
     cum_cnt_plot = Figure(figsize=(8, 6))
     ax = cum_cnt_plot.add_subplot(1, 1, 1)
     ax.plot([e.start_time for e in temp], [i + 1 for i in range(len(temp))])
+    for label in ax.get_xticklabels():
+        label.set(rotation=90)
     ax.set_xlabel("Date")
     ax.set_ylabel("Cumulative Number of Question Attempts")
     cum_cnt_plot.tight_layout() 
@@ -408,9 +411,11 @@ def dashboard_question(request: HttpRequest, qid: int):
     context['additional_plots'] = ""
     # Cumulative number of question attempts 
     temp = sorted(q_records, key=lambda x:x.start_time)
-    cum_cnt_plot = Figure(figsize=(8, 6))
+    cum_cnt_plot = Figure(figsize=(6, 4))
     ax = cum_cnt_plot.add_subplot(1, 1, 1)
     ax.plot([e.start_time for e in temp], [i + 1 for i in range(len(temp))])
+    for label in ax.get_xticklabels():
+        label.set(rotation=90)
     ax.set_xlabel("Date")
     ax.set_ylabel("Cumulative Number of Question Attempts")
     cum_cnt_plot.tight_layout() 
