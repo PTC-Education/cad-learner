@@ -231,14 +231,22 @@ def get_feature_counts(
         for entry in q_records: 
             if entry.final_assembly_def: 
                 for fea in entry.final_assembly_def['rootAssembly']['features']: 
-                    if fea['featureData']['mateType'] not in feature_cnts: 
-                        feature_cnts[fea['featureData']['mateType']] = 0 
-                    feature_cnts[fea['featureData']['mateType']] += 1 
+                    if fea['featureType'] != 'mate': 
+                        fea_type = fea['featureType']
+                    else: 
+                        fea_type = fea['featureData']['mateType']
+                    if fea_type not in feature_cnts: 
+                        feature_cnts[fea_type] = 0 
+                    feature_cnts[fea_type] += 1 
                 for subass in entry.final_assembly_def['subAssemblies']: 
                     for fea in subass['features']: 
-                        if fea['featureData']['mateType'] not in feature_cnts: 
-                            feature_cnts[fea['featureData']['mateType']] = 0 
-                        feature_cnts[fea['featureData']['mateType']] += 1 
+                        if fea['featureType'] != 'mate': 
+                            fea_type = fea['featureType']
+                        else: 
+                            fea_type = fea['featureData']['mateType']
+                        if fea_type not in feature_cnts: 
+                            feature_cnts[fea_type] = 0 
+                        feature_cnts[fea_type] += 1 
     
     num_attempts = len(q_records)
     for key, item in feature_cnts.items(): 
