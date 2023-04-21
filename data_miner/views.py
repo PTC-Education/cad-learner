@@ -3,9 +3,8 @@ import base64
 from typing import List, Dict 
 from datetime import datetime
 import numpy as np 
-import cv2 
+from PIL import Image
 from matplotlib.figure import Figure
-import matplotlib.dates as mdates 
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import django_rq
@@ -128,22 +127,20 @@ def shaded_view_cluster(
     """
     def image_error(img1, img2):
         """ Calculate the mean squared error (MSE) between two images """
-        def readb64_img(uri):
+        def readb64_img(uri: str):
             """ Clean the raw image from html format """
             encoded_data = uri.split(',')[1]
-            nparr = np.frombuffer(base64.b64decode(encoded_data), np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            return img
+            base64_decoded = base64.b64decode(encoded_data)
+            image = Image.open(io.BytesIO(base64_decoded))
+            image = image.convert("L") # convert the images to grayscale
+            return np.array(image)
     
         # load the input images
         img1 = readb64_img(img1)
         img2 = readb64_img(img2)
-        # convert the images to grayscale
-        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-        img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
         # Compute MSE between two images
         h, w = img1.shape
-        diff = cv2.subtract(img1, img2)
+        diff = np.subtract(img1, img2)
         err = np.sum(diff**2)
         mse = err/(float(h*w))
         return mse, diff
@@ -171,7 +168,7 @@ def shaded_view_cluster(
         clusters.append([curr_ind])
         curr_cluster_size = len(clusters)
         for item in imgs_ind.copy(): 
-            if err_mat[curr_ind][item] <= 10: 
+            if err_mat[curr_ind][item] <= 15: 
                 imgs_ind.remove(item)
                 clusters[curr_cluster_size-1].append(item)
     clusters.sort(key=lambda x:len(x), reverse=True)
@@ -250,7 +247,7 @@ def get_feature_counts(
     
     num_attempts = len(q_records)
     for key, item in feature_cnts.items(): 
-        feature_cnts[key] = round(item / num_attempts, 1)
+        feature_cnts[key] = round(item / num_attempts, 2)
     return feature_cnts 
 
 
@@ -515,11 +512,11 @@ def dashboard_question(request: HttpRequest, qid: int):
     
     # Cluster final screen capture of the workspace 
     if Question.objects.get(question_id=qid).allowed_etype == ElementType.PARTSTUDIO: 
-        if len(HistoryData.objects.filter(question_id=qid)) >= 5: 
+        if len(HistoryData.objects.filter(question_id=qid)) >= 1: 
             context['additional_plots'] += shaded_view_cluster(q_records, qid)
             
     # Average count of features used per user in the question 
-    if len(HistoryData.objects.filter(question_id=qid)) >= 1: 
+    if len(HistoryData.objects.filter(question_id=qid)) >= 5: 
         fea_cnts = get_feature_counts(q_records, qid)
         fea_cnt_table = '''
         <table>

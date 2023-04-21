@@ -16,7 +16,6 @@ idna==3.4
 kiwisolver==1.4.4
 matplotlib==3.7.1
 numpy==1.24.2
-opencv-python-headless==4.7.0.72
 packaging==23.0
 Pillow==9.5.0
 psycopg2==2.9.6
