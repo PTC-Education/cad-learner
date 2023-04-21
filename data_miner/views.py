@@ -9,9 +9,10 @@ import matplotlib.dates as mdates
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 
 import django_rq
-from django.shortcuts import render 
+from django.shortcuts import render
 from django.http import HttpRequest
 from django.utils import timezone
+from django.db.models import QuerySet
 from django.core.exceptions import ObjectDoesNotExist
 
 from .models import HistoryData, HistoryData_PS, HistoryData_AS, HistoryData_MSPS
@@ -40,7 +41,8 @@ def convert_plot_to_str(plot) -> str:
 
 
 def calc_time_spent(
-    qid: int, all: bool, is_final_failure=False, all_success=False, has_failed_attempts=False
+    q_records: QuerySet[D_Type_Dict.values()], qid: int, all: bool, 
+    is_final_failure=False, all_success=False, has_failed_attempts=False
 ) -> List[float]: 
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, return a list of the time spent by all user attempts on the question in minutes 
@@ -53,28 +55,24 @@ def calc_time_spent(
     - ``has_failed_attempts``: if True, no failed submissions are recorded; i.e., got the question right at the first attempt (not available for multi-step questions)
     """
     if all: 
-        temp_set = HistoryData.objects.filter(
-            question_id=qid, time_of_completion__isnull=False
+        temp_set = q_records.filter(
+            time_of_completion__isnull=False
         )
     elif is_final_failure: 
-        temp_set = HistoryData.objects.filter(
-            question_id=qid, time_of_completion__isnull=False, is_final_failure=True
+        temp_set = q_records.filter(
+            time_of_completion__isnull=False, is_final_failure=True
         )
     elif all_success: 
-        temp_set = HistoryData.objects.filter(
-            question_id=qid, time_of_completion__isnull=False, is_final_failure=False 
+        temp_set = q_records.filter(
+            time_of_completion__isnull=False, is_final_failure=False 
         )
     elif has_failed_attempts: 
-        temp_set = D_Type_Dict[
-            Question.objects.get(question_id=qid).question_type
-        ].objects.filter(
-            question_id=qid, time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=False
+        temp_set = q_records.filter(
+            time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=False
         )
     else: 
-        temp_set = D_Type_Dict[
-            Question.objects.get(question_id=qid).question_type
-        ].objects.filter(
-            question_id=qid, time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=True
+        temp_set = q_records.filter(
+            time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=True
         )
     all_times = [] 
     for entry in temp_set: 
@@ -84,31 +82,31 @@ def calc_time_spent(
     return all_times
 
 
-def calc_feature_cnt(qid: int) -> List[int]: 
+def calc_feature_cnt(q_records: QuerySet[D_Type_Dict.values()], qid: int) -> List[int]: 
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, return a list of the number of features used for all user attempts on the question 
     """
     que = Question.objects.get(question_id=qid)
     temp_cnt = [] 
     if que.question_type == QuestionType.MULTI_STEP_PS: 
-        records = HistoryData_MSPS.objects.filter(
-            question_id=qid, is_final_failure=False, time_of_completion__isnull=False
+        records = q_records.filter(
+            is_final_failure=False, time_of_completion__isnull=False
         )
         for entry in records: 
             temp_cnt.append(
                 len(entry.step_feature_lists[-1]['features'])
             )
     elif que.allowed_etype == ElementType.PARTSTUDIO: 
-        records = HistoryData_PS.objects.filter(
-            question_id=qid, is_final_failure=False, time_of_completion__isnull=False
+        records = q_records.filter(
+            is_final_failure=False, time_of_completion__isnull=False
         )
         for entry in records: 
             temp_cnt.append(
                 len(entry.final_feature_list['features'])
             )
     else: # que.allowed_etype == ElementType.ASSEMBLY 
-        records = HistoryData_AS.objects.filter(
-            question_id=qid, is_final_failure=False, time_of_completion__isnull=False
+        records = q_records.filter(
+            is_final_failure=False, time_of_completion__isnull=False
         )
         for entry in records: 
             temp_cnt.append(
@@ -118,7 +116,9 @@ def calc_feature_cnt(qid: int) -> List[int]:
     return temp_cnt
     
 
-def shaded_view_cluster(qid: int, select_img="FRT") -> str: 
+def shaded_view_cluster(
+    q_records: QuerySet[D_Type_Dict.values()], qid: int, select_img="FRT"
+) -> str: 
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, this function analyze all the captured shaded view images of the final workspace. This function automatically clusters all the images based on the similarity (MSE difference) between images. 
     
@@ -151,8 +151,7 @@ def shaded_view_cluster(qid: int, select_img="FRT") -> str:
     # Get all images for the question 
     imgs = [] 
     q_type = Question.objects.get(question_id=qid).question_type
-    records = D_Type_Dict[q_type].objects.filter(question_id=qid)
-    for entry in records: 
+    for entry in q_records: 
         if q_type == QuestionType.MULTI_STEP_PS: 
             if len(entry.step_shaded_views) == Question_MSPS.objects.get(question_id=qid).total_steps: 
                 imgs.append(entry.step_shaded_views[-1][select_img])
@@ -205,7 +204,9 @@ def shaded_view_cluster(qid: int, select_img="FRT") -> str:
     return result + "</table>"
 
 
-def get_feature_counts(qid: int) -> Dict[str, int]: 
+def get_feature_counts(
+    q_records: QuerySet[D_Type_Dict.values()], qid: int
+) -> Dict[str, int]: 
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, return a dictionary of the features used and the average counts of features used per user attempt on the question 
     """
@@ -213,21 +214,21 @@ def get_feature_counts(qid: int) -> Dict[str, int]:
     que = Question.objects.get(question_id=qid)
     if que.question_type == QuestionType.MULTI_STEP_PS: 
         total_steps = Question_MSPS.objects.get(question_id=qid).total_steps
-        for entry in HistoryData_MSPS.objects.filter(question_id=qid): 
+        for entry in q_records: 
             if len(entry.step_feature_lists) == total_steps: 
                 for fea in entry.step_feature_lists[-1]['features']: 
                     if fea['featureType'] not in feature_cnts: 
                         feature_cnts[fea['featureType']] = 0 
                     feature_cnts[fea['featureType']] += 1 
     elif que.allowed_etype == ElementType.PARTSTUDIO: 
-        for entry in HistoryData_PS.objects.filter(question_id=qid): 
+        for entry in q_records: 
             if entry.final_feature_list: 
                 for fea in entry.final_feature_list['features']: 
                     if fea['featureType'] not in feature_cnts: 
                         feature_cnts[fea['featureType']] = 0 
                     feature_cnts[fea['featureType']] += 1 
     else: # Assembly 
-        for entry in HistoryData_AS.objects.filter(question_id=qid): 
+        for entry in q_records: 
             if entry.final_assembly_def: 
                 for fea in entry.final_assembly_def['rootAssembly']['features']: 
                     if fea['featureData']['mateType'] not in feature_cnts: 
@@ -239,7 +240,7 @@ def get_feature_counts(qid: int) -> Dict[str, int]:
                             feature_cnts[fea['featureData']['mateType']] = 0 
                         feature_cnts[fea['featureData']['mateType']] += 1 
     
-    num_attempts = len(HistoryData.objects.filter(question_id=qid))
+    num_attempts = len(q_records)
     for key, item in feature_cnts.items(): 
         feature_cnts[key] = round(item / num_attempts, 1)
     return feature_cnts 
@@ -260,12 +261,13 @@ def dashboard(request: HttpRequest):
     context['all_questions'] = sorted(all_ques, key=lambda x:x.question_name)
     
     # Simple counting 
-    context['attempt_total'] = len(HistoryData.objects.all())
-    context['user_attempt_total'] = len(HistoryData.objects.values('os_user_id').distinct())
+    all_records = HistoryData.objects.all() 
+    context['attempt_total'] = len(all_records)
+    context['user_attempt_total'] = len(all_records.values('os_user_id').distinct())
     context['user_login_total'] = len(AuthUser.objects.all())
     
     # Cumulative number of question attempts 
-    temp = sorted(HistoryData.objects.all(), key=lambda x:x.start_time)
+    temp = sorted(all_records, key=lambda x:x.start_time)
     cum_cnt_plot = Figure(figsize=(8, 6))
     ax = cum_cnt_plot.add_subplot(1, 1, 1)
     ax.plot([e.start_time for e in temp], [i + 1 for i in range(len(temp))])
@@ -304,7 +306,13 @@ def dashboard(request: HttpRequest):
     context['succ_fail_cnt'] = convert_plot_to_str(fig_cnt_bar)
     
     # Time spent distributtion on all questions 
-    y_time = [calc_time_spent(q.question_id, all=True) for q in context['all_questions']]
+    y_time = [
+        calc_time_spent(
+            D_Type_Dict[q.question_type].objects.filter(question_id=q.question_id), 
+            q.question_id, all=True
+        ) 
+        for q in context['all_questions']
+    ]
     fig_time_dist = Figure(figsize=(8, 6)) 
     ax = fig_time_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_time, positions=np.arange(len(y_time)))
@@ -319,7 +327,13 @@ def dashboard(request: HttpRequest):
     context['time_spent'] = convert_plot_to_str(fig_time_dist)
     
     # Number of features used in all questions 
-    y_cnt = [calc_feature_cnt(q.question_id) for q in context['all_questions']] 
+    y_cnt = [
+        calc_feature_cnt(
+            D_Type_Dict[q.question_type].objects.filter(question_id=q.question_id), 
+            q.question_id
+        ) 
+        for q in context['all_questions']
+    ] 
     fea_use_dist = Figure(figsize=(8, 6)) 
     ax = fea_use_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_cnt, positions=np.arange(len(y_cnt)))
@@ -422,7 +436,7 @@ def dashboard_question(request: HttpRequest, qid: int):
     context['cum_attempt_cnt'] = convert_plot_to_str(cum_cnt_plot)
     
     # Time spent distribution of the question 
-    y_time = calc_time_spent(qid, all=True)
+    y_time = calc_time_spent(q_records, qid, all=True)
     time_dist = Figure(figsize=(6, 4)) 
     ax = time_dist.add_subplot(1, 1, 1)
     ax.hist(y_time)
@@ -460,12 +474,12 @@ def dashboard_question(request: HttpRequest, qid: int):
         context['time_spent_comparison'] = convert_plot_to_str(fig_time_compare)
     else: 
         direct_succ = calc_time_spent(
-            qid, all=False, is_final_failure=False, has_failed_attempts=False
+            q_records, qid, all=False, is_final_failure=False, has_failed_attempts=False
         )
         indirect_succ = calc_time_spent(
-            qid, all=False, is_final_failure=False, has_failed_attempts=True
+            q_records, qid, all=False, is_final_failure=False, has_failed_attempts=True
         )
-        failure = calc_time_spent(qid, all=False, is_final_failure=True)
+        failure = calc_time_spent(q_records, qid, all=False, is_final_failure=True)
         
         fig_time_compare = Figure(figsize=(6, 4))
         ax = fig_time_compare.add_subplot(1, 1, 1)
@@ -482,7 +496,7 @@ def dashboard_question(request: HttpRequest, qid: int):
         context['time_spent_comparison'] = convert_plot_to_str(fig_time_compare)
     
     # Feature counts of the question 
-    fea_cnt = calc_feature_cnt(qid)
+    fea_cnt = calc_feature_cnt(q_records, qid)
     fea_dist = Figure(figsize=(6, 4))
     ax = fea_dist.add_subplot(1, 1, 1)
     ax.hist(fea_cnt)
@@ -494,11 +508,11 @@ def dashboard_question(request: HttpRequest, qid: int):
     # Cluster final screen capture of the workspace 
     if Question.objects.get(question_id=qid).allowed_etype == ElementType.PARTSTUDIO: 
         if len(HistoryData.objects.filter(question_id=qid)) >= 5: 
-            context['additional_plots'] += shaded_view_cluster(qid)
+            context['additional_plots'] += shaded_view_cluster(q_records, qid)
             
     # Average count of features used per user in the question 
     if len(HistoryData.objects.filter(question_id=qid)) >= 1: 
-        fea_cnts = get_feature_counts(qid)
+        fea_cnts = get_feature_counts(q_records, qid)
         fea_cnt_table = '''
         <table>
             <tr>

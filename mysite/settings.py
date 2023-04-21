@@ -31,7 +31,7 @@ if 'SECRET_KEY' in os.environ:
 
 # SECURITY WARNING: don't run with debug turned on in production!
 if not IS_HEROKU: 
-    DEBUG = True
+    DEBUG = False 
 else: 
     DEBUG = False
 
