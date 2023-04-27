@@ -513,7 +513,11 @@ def dashboard_question(request: HttpRequest, qid: int):
     # Cluster final screen capture of the workspace 
     if Question.objects.get(question_id=qid).allowed_etype == ElementType.PARTSTUDIO: 
         if len(HistoryData.objects.filter(question_id=qid)) >= 1: 
-            context['additional_plots'] += shaded_view_cluster(q_records, qid)
+            context['additional_plots'] += shaded_view_cluster(
+                q_records.filter(
+                    is_final_failure=False, time_of_completion__isnull=False
+                ), qid
+            )
             
     # Average count of features used per user in the question 
     if len(HistoryData.objects.filter(question_id=qid)) >= 5: 
