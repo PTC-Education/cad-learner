@@ -62,16 +62,14 @@ def calc_time_spent(
             time_of_completion__isnull=False, is_final_failure=True
         )
     elif all_success: 
-        temp_set = q_records.filter(
-            time_of_completion__isnull=False, is_final_failure=False 
-        )
+        temp_set = q_records.filter(is_final_failure=False)
     elif has_failed_attempts: 
         temp_set = q_records.filter(
-            time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=False
+            is_final_failure=False, first_failed_time__isnull=False
         )
     else: 
         temp_set = q_records.filter(
-            time_of_completion__isnull=False, is_final_failure=False, first_failed_time__isnull=True
+            is_final_failure=False, first_failed_time__isnull=True
         )
     all_times = [] 
     for entry in temp_set: 
@@ -88,25 +86,19 @@ def calc_feature_cnt(q_records: QuerySet[D_Type_Dict.values()], qid: int) -> Lis
     que = Question.objects.get(question_id=qid)
     temp_cnt = [] 
     if que.question_type == QuestionType.MULTI_STEP_PS: 
-        records = q_records.filter(
-            is_final_failure=False, time_of_completion__isnull=False
-        )
+        records = q_records.filter(is_final_failure=False)
         for entry in records: 
             temp_cnt.append(
                 len(entry.step_feature_lists[-1]['features'])
             )
     elif que.allowed_etype == ElementType.PARTSTUDIO: 
-        records = q_records.filter(
-            is_final_failure=False, time_of_completion__isnull=False
-        )
+        records = q_records.filter(is_final_failure=False)
         for entry in records: 
             temp_cnt.append(
                 len(entry.final_feature_list['features'])
             )
     else: # que.allowed_etype == ElementType.ASSEMBLY 
-        records = q_records.filter(
-            is_final_failure=False, time_of_completion__isnull=False
-        )
+        records = q_records.filter(is_final_failure=False)
         for entry in records: 
             temp_cnt.append(
                 len(entry.final_assembly_def['rootAssembly']['features']) + 
@@ -289,9 +281,7 @@ def dashboard(request: HttpRequest):
     y_fail = np.zeros(len(context['all_questions'])) 
     for i, qid in enumerate([q.question_id for q in context['all_questions']]): 
         temp = HistoryData.objects.filter(question_id=qid)
-        y_succ[i] = len(temp.filter(
-            is_final_failure=False, time_of_completion__isnull=False
-        ))
+        y_succ[i] = len(temp.filter(is_final_failure=False))
         y_fail[i] = len(temp) - y_succ[i]
     
     fig_cnt_bar = Figure(figsize=(8, 6)) 
@@ -412,12 +402,10 @@ def dashboard_question(request: HttpRequest, qid: int):
         </div>
         '''.format(
             len(q_records.filter(
-                is_final_failure=False, time_of_completion__isnull=False, 
-                first_failed_time__isnull=True
+                is_final_failure=False, first_failed_time__isnull=True
             )), 
             len(q_records.filter(
-                is_final_failure=False, time_of_completion__isnull=False, 
-                first_failed_time__isnull=False 
+                is_final_failure=False, first_failed_time__isnull=False 
             )), 
             len(q_records.filter(
                 is_final_failure=True, time_of_completion__isnull=False
@@ -514,9 +502,7 @@ def dashboard_question(request: HttpRequest, qid: int):
     if Question.objects.get(question_id=qid).allowed_etype == ElementType.PARTSTUDIO: 
         if len(HistoryData.objects.filter(question_id=qid)) >= 1: 
             context['additional_plots'] += shaded_view_cluster(
-                q_records.filter(
-                    is_final_failure=False, time_of_completion__isnull=False
-                ), qid
+                q_records.filter(is_final_failure=False), qid
             )
             
     # Average count of features used per user in the question 
