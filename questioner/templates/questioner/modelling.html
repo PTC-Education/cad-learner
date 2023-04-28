@@ -43,6 +43,9 @@
                 <!-- Print step info if question is multi-step -->
                 {% if question.is_multi_step %}
                     <h3>Step {{ step.step_number }} of {{ question.total_steps }}</h3>
+                    {% if step.step_number > 1 %}
+                        <p>Congratulations on completing the previous step! Please continue with instructions below ...</p>
+                    {% endif %}
                     <p><strong>Tips: </strong>you can preview instructions for later steps in the reference document.</p>
                 {% endif %}
                 <!-- Print additional instructions if any-->
