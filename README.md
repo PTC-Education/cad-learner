@@ -26,6 +26,8 @@ If you would like to fork our repository and host your own *CAD Challenges* app 
 ### For Researchers 
 If you would like to gain access to the dataset created by this app, please contact the maintainers in [this section](#maintainers). You can find the detailed data collection documentation on this [wiki page](https://github.com/PTC-Education/cad-learner/wiki/Data-Collection-Documentation), and a dashboard of some simple statistics generated from the dataset can be found on: https://cad-learner.herokuapp.com/dashboard/. 
 
+You may also want to fork our repository and host your own CAD research platform for unobtrusive data collection in Onshape. The development guide on this [wiki page](https://github.com/PTC-Education/cad-learner/wiki/Development-Guide) documents some useful information. 
+
 If your research is benefited from this app and/or its general framework, please cite our paper in any research publication https://doi.org/10.1115/DETC2023-114927 
 
 ```bibtex
