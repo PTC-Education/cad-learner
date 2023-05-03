@@ -170,7 +170,7 @@ def shaded_view_cluster(
         <tr>
             <th>View No.</th>
             <th>Isometric View of the Final Model</th>
-            <th>Number of Attempts with the Same View</th>
+            <th>Number of Successful Attempts with the Same View</th>
         </tr>
     '''
     for i, cluster in enumerate(clusters): 
@@ -303,7 +303,9 @@ def dashboard(request: HttpRequest):
     # Time spent distributtion on all questions 
     y_time = [
         calc_time_spent(
-            D_Type_Dict[q.question_type].objects.filter(question_id=q.question_id), 
+            D_Type_Dict[q.question_type].objects.filter(
+                question_id=q.question_id, is_final_failure=False
+            ), 
             q.question_id, all=True
         ) 
         for q in context['all_questions']
@@ -312,7 +314,7 @@ def dashboard(request: HttpRequest):
     ax = fig_time_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_time, positions=np.arange(len(y_time)))
     ax.set_xlabel("Question Name")
-    ax.set_ylabel("Time Spent of Attempts (mins)")
+    ax.set_ylabel("Time Spent of Successful Attempts (mins)")
     ax.set_xticks(np.arange(len(y_time)))
     ax.set_xticklabels([
         q.question_name + "\n(" + q.get_question_type_display() + ")" 
@@ -324,7 +326,9 @@ def dashboard(request: HttpRequest):
     # Number of features used in all questions 
     y_cnt = [
         calc_feature_cnt(
-            D_Type_Dict[q.question_type].objects.filter(question_id=q.question_id), 
+            D_Type_Dict[q.question_type].objects.filter(
+                question_id=q.question_id, is_final_failure=False 
+            ), 
             q.question_id
         ) 
         for q in context['all_questions']
@@ -333,7 +337,7 @@ def dashboard(request: HttpRequest):
     ax = fea_use_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_cnt, positions=np.arange(len(y_cnt)))
     ax.set_xlabel("Question Name")
-    ax.set_ylabel("Number of Features Used")
+    ax.set_ylabel("Number of Features Used in Successful Attempts")
     ax.set_xticks(np.arange(len(y_cnt)))
     ax.set_xticklabels([
         q.question_name + "\n(" + q.get_question_type_display() + ")" 
@@ -489,11 +493,13 @@ def dashboard_question(request: HttpRequest, qid: int):
         context['time_spent_comparison'] = convert_plot_to_str(fig_time_compare)
     
     # Feature counts of the question 
-    fea_cnt = calc_feature_cnt(q_records, qid)
+    fea_cnt = calc_feature_cnt(
+        q_records.filter(is_final_failure=False), qid
+    )
     fea_dist = Figure(figsize=(6, 4))
     ax = fea_dist.add_subplot(1, 1, 1)
     ax.hist(fea_cnt)
-    ax.set_xlabel("Number of Features Used in the Question")
+    ax.set_xlabel("Number of Features Used in Successful Attempts")
     ax.set_ylabel("Number of Users")
     fea_dist.tight_layout()
     context['feature_cnt'] = convert_plot_to_str(fea_dist) 
@@ -512,7 +518,7 @@ def dashboard_question(request: HttpRequest, qid: int):
         <table>
             <tr>
                 <th>Feature Type</th>
-                <th>Avg. Num. of Feature Used per Attempt</th>
+                <th>Avg. Num. of Feature Used per Succ. Attempt</th>
             </tr>
         '''
         for key, item in sorted(fea_cnts.items(), key=lambda x:x[1], reverse=True): 
