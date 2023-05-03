@@ -88,22 +88,25 @@ def calc_feature_cnt(q_records: QuerySet[D_Type_Dict.values()], qid: int) -> Lis
     if que.question_type == QuestionType.MULTI_STEP_PS: 
         records = q_records.filter(is_final_failure=False)
         for entry in records: 
-            temp_cnt.append(
-                len(entry.step_feature_lists[-1]['features'])
-            )
+            if entry.step_feature_lists:
+                temp_cnt.append(
+                    len(entry.step_feature_lists[-1]['features'])
+                )
     elif que.allowed_etype == ElementType.PARTSTUDIO: 
         records = q_records.filter(is_final_failure=False)
         for entry in records: 
-            temp_cnt.append(
-                len(entry.final_feature_list['features'])
-            )
+            if entry.final_feature_list: 
+                temp_cnt.append(
+                    len(entry.final_feature_list['features'])
+                )
     else: # que.allowed_etype == ElementType.ASSEMBLY 
         records = q_records.filter(is_final_failure=False)
         for entry in records: 
-            temp_cnt.append(
-                len(entry.final_assembly_def['rootAssembly']['features']) + 
-                sum([len(subass['features']) for subass in entry.final_assembly_def['subAssemblies']])
-            )
+            if entry.final_assembly_def: 
+                temp_cnt.append(
+                    len(entry.final_assembly_def['rootAssembly']['features']) + 
+                    sum([len(subass['features']) for subass in entry.final_assembly_def['subAssemblies']])
+                )
     return temp_cnt
     
 
