@@ -1,4 +1,5 @@
 # CAD Challenges
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7897262.svg)](https://doi.org/10.5281/zenodo.7897262)
 ![](questioner/static/questioner/images/logo.svg)
 
 The *CAD Challenges* app is a web app that hosts CAD modelling challenges for self-paced learning in Onshape. The app is currently hosted on Heroku and integrated to Onshape through Onshape's OAuth authorization. The app was previously named the *CAD Learner*. 
