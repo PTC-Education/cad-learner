@@ -66,7 +66,7 @@ class HistoryData(models.Model):
     
     # Attempt information 
     num_attempt = models.IntegerField(default=0, help_text="The n-th attempt") 
-    is_final_failure = models.BooleanField(default=False, help_text="Did final sub fail?")
+    is_final_failure = models.BooleanField(default=True, help_text="Did final sub fail?")
     # General design data collected 
     # Each question type may collect additional design data 
     microversions_descrip = models.JSONField(
