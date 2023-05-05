@@ -268,7 +268,7 @@ def dashboard(request: HttpRequest):
     
     # Cumulative number of question attempts 
     temp = sorted(all_records, key=lambda x:x.start_time)
-    cum_cnt_plot = Figure(figsize=(8, 6))
+    cum_cnt_plot = Figure(figsize=(10, 6))
     ax = cum_cnt_plot.add_subplot(1, 1, 1)
     ax.plot([e.start_time for e in temp], [i + 1 for i in range(len(temp))])
     for label in ax.get_xticklabels():
@@ -287,7 +287,7 @@ def dashboard(request: HttpRequest):
         y_succ[i] = len(temp.filter(is_final_failure=False))
         y_fail[i] = len(temp) - y_succ[i]
     
-    fig_cnt_bar = Figure(figsize=(8, 6)) 
+    fig_cnt_bar = Figure(figsize=(10, 6)) 
     ax = fig_cnt_bar.add_subplot(1, 1, 1)
     p1 = ax.bar(x, y_succ)
     p2 = ax.bar(x, y_fail, bottom=y_succ)
@@ -296,7 +296,7 @@ def dashboard(request: HttpRequest):
     ax.set_ylabel("Number of Attempts")
     ax.set_xticks(x)
     ax.set_xticklabels([
-        q.question_name + "\n(" + q.get_question_type_display() + ")" 
+        q.question_name + "(" + q.question_type + ")" 
         for q in context['all_questions']
     ], rotation=90)
     ax.legend((p1[0], p2[0]), ("Successful", "Failed"))
@@ -313,14 +313,14 @@ def dashboard(request: HttpRequest):
         ) 
         for q in context['all_questions']
     ]
-    fig_time_dist = Figure(figsize=(8, 6)) 
+    fig_time_dist = Figure(figsize=(10, 6)) 
     ax = fig_time_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_time, positions=np.arange(len(y_time)))
     ax.set_xlabel("Question Name")
     ax.set_ylabel("Time Spent of Successful Attempts (mins)")
     ax.set_xticks(np.arange(len(y_time)))
     ax.set_xticklabels([
-        q.question_name + "\n(" + q.get_question_type_display() + ")" 
+        q.question_name + "(" + q.question_type + ")" 
         for q in context['all_questions']
     ], rotation=90)
     fig_time_dist.tight_layout()
@@ -336,14 +336,14 @@ def dashboard(request: HttpRequest):
         ) 
         for q in context['all_questions']
     ] 
-    fea_use_dist = Figure(figsize=(8, 6)) 
+    fea_use_dist = Figure(figsize=(10, 6)) 
     ax = fea_use_dist.add_subplot(1, 1, 1)
     ax.boxplot(y_cnt, positions=np.arange(len(y_cnt)))
     ax.set_xlabel("Question Name")
     ax.set_ylabel("Number of Features Used in Successful Attempts")
     ax.set_xticks(np.arange(len(y_cnt)))
     ax.set_xticklabels([
-        q.question_name + "\n(" + q.get_question_type_display() + ")" 
+        q.question_name + "(" + q.question_type + ")" 
         for q in context['all_questions']
     ], rotation=90)
     fea_use_dist.tight_layout()
