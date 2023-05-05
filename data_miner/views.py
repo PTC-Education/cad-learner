@@ -296,7 +296,7 @@ def dashboard(request: HttpRequest):
     ax.set_ylabel("Number of Attempts")
     ax.set_xticks(x)
     ax.set_xticklabels([
-        q.question_name + "(" + q.question_type + ")" 
+        q.question_name + " (" + q.question_type + ")" 
         for q in context['all_questions']
     ], rotation=90)
     ax.legend((p1[0], p2[0]), ("Successful", "Failed"))
@@ -320,7 +320,7 @@ def dashboard(request: HttpRequest):
     ax.set_ylabel("Time Spent of Successful Attempts (mins)")
     ax.set_xticks(np.arange(len(y_time)))
     ax.set_xticklabels([
-        q.question_name + "(" + q.question_type + ")" 
+        q.question_name + " (" + q.question_type + ")" 
         for q in context['all_questions']
     ], rotation=90)
     fig_time_dist.tight_layout()
@@ -343,7 +343,7 @@ def dashboard(request: HttpRequest):
     ax.set_ylabel("Number of Features Used in Successful Attempts")
     ax.set_xticks(np.arange(len(y_cnt)))
     ax.set_xticklabels([
-        q.question_name + "(" + q.question_type + ")" 
+        q.question_name + " (" + q.question_type + ")" 
         for q in context['all_questions']
     ], rotation=90)
     fea_use_dist.tight_layout()
