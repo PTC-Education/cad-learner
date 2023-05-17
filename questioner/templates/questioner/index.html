@@ -36,7 +36,7 @@
             <input class="search_menu" type="text" id="searchInput" onkeyup="search_filter()" placeholder="Search ..." title="Type in a question name" />
         </div>
         <!-- Buttons to filter by difficulty levels -->
-        <div class="btn-group">
+        <div class="level-group">
             <div>
                 <input type="radio" name="user" class="radio" id="all_q" onclick="search_filter()" checked />
                 <label for="all_q">All Levels</label>
@@ -55,7 +55,7 @@
             </div>
         </div>
          <!-- Buttons to filter by question type -->
-        <div class="btn-group">
+        <div class="type-group">
             <div>
                 <input type="radio" name="qType" class="radio" id="all_type" onclick="search_filter()" checked />
                 <label for="all_type">All Types</label>
@@ -67,6 +67,10 @@
             <div>
                 <input type="radio" name="qType" class="radio" id="multi_type" onclick="search_filter()" />
                 <label for="multi_type">Multi-Part</label>
+            </div>
+            <div>
+                <input type="radio" name="qType" class="radio" id="multi_step" onclick="search_filter()" />
+                <label for="multi_step">Multi-Step</label>
             </div>
             <div>
                 <input type="radio" name="qType" class="radio" id="assem_type" onclick="search_filter()" />
@@ -100,9 +104,9 @@
                             <!-- Question type -->
                             {% if question.question_type == 'MSPS' %}
                                 {% if question.question_msps.is_multi_part %}
-                                    <li class="q_type">Challenge type: Multi-part Part Studio</li>
+                                    <li class="q_type">Challenge type: Multi-part Part Studio (Multi-Step)</li>
                                 {% else %}
-                                    <li class="q_type">Challenge type: Single-part Part Studio</li>
+                                    <li class="q_type">Challenge type: Single-part Part Studio (Multi-Step)</li>
                                 {% endif %}
                             {% else %}
                                 <li class="q_type">Challenge type: {{ question.get_question_type_display }}</li>

@@ -23,10 +23,12 @@ function search_filter() {
         q_type = "Challenge type: Multi-part Part Studio"; 
     } else if (document.getElementById("assem_type").checked) {
         q_type = "Challenge type: Assembly Mating"; 
+    } else if (document.getElementById("multi_step").checked) {
+        q_type = "(Multi-Step)"; 
     } else {
         q_type = "all"; 
     }
-
+    //document.getElementById("disclaimer").innerHTML = q_type.substring(0,27)
     // Get availability if reviewer 
     var is_reviewer = document.getElementById("is_reviewer").value === "True"; 
     var q_avail; 
@@ -59,8 +61,16 @@ function search_filter() {
         } else {
             var avail = true; 
         }
-        if (
-                (q_level === "all" || q_level === level) && (q_type === "all" || q_type === type) && avail && 
+        if (q_type=="(Multi-Step)") {
+            if ( (q_level === "all" || q_level === level) && (type.slice(-12) == q_type) && avail && q_name.innerHTML.toUpperCase().indexOf(filter) > -1) {
+                questions[i].style.display = ""; 
+            }
+            else {
+                questions[i].style.display = "none"; 
+            }
+        }
+        else if (
+                (q_level === "all" || q_level === level) && (q_type === "all" || q_type.substring(0,27) === type.substring(0,27)) && avail && 
                 q_name.innerHTML.toUpperCase().indexOf(filter) > -1
             ) {
             questions[i].style.display = ""; 
