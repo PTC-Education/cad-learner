@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'questioner/home.css' %}">
+    </head>
+    <body>
+        <!-- Return to the home page -->
+        <br />
+        <form action="{% url 'questioner:index' user.os_user_id %}">
+            <input type="submit" value="Return to Home Page"/>
+        </form>
+        <br />
+        <form action="{% url 'questioner:index' user.os_user_id %}">
+            <input type="submit" value="Get mass properties"/>
+        </form>
+    </body>
+</html>

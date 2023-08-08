@@ -11,6 +11,11 @@
             <form action="{% url 'questioner:index' user.os_user_id %}">
                 <input type="submit" value="Return to Home Page"/>
             </form>
+            <!-- Go to auto grader -->
+            <br />
+            <form action="{% url 'questioner:grader' user.os_user_id %}">
+                <input type="submit" value="Go to Auto Grader"/>
+            </form>
         {% else %}
             <!-- Load app logo at the top of the page -->
             <div id="logo">

@@ -76,6 +76,28 @@ def home(request: HttpRequest, os_user_id=None):
         context['user'] = curr_user
     return render(request, "questioner/home.html", context=context)
 
+# Create your views here.
+def grader(request: HttpRequest, os_user_id: str, time=None):
+    """ 
+    The auto grader page for checking a model's mass properties and time completion. 
+
+    **Arguments:**
+        
+    - ``os_user_id``: identify the :model:`questioner.AuthUser` model with the user's login information.
+
+    **Template:**
+
+    :template:`questioner/grader.html`
+    """
+    context = {"user": None,
+               "time": None} 
+    if os_user_id: 
+        curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+        context['user'] = curr_user
+    if time:
+        context['time'] = time
+    return render(request, "questioner/grader.html", context=context)
+
 
 def login(request: HttpRequest): 
     """ 
