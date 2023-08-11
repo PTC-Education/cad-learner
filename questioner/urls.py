@@ -13,6 +13,7 @@ urlpatterns = [
     path('modelling/<str:question_type>/<int:question_id>/<str:os_user_id>/<int:initiate>/<int:step>/', views.model, name='modelling'), 
     path('check/<str:question_type>/<int:question_id>/<str:os_user_id>/', views.check_model, name="check"), 
     path('check/<str:question_type>/<int:question_id>/<str:os_user_id>/<int:step>/', views.check_model, name="check"), 
+    path('grade/<str:os_user_id>/', views.grade_model, name="grade"), 
     path('solution/<str:question_type>/<int:question_id>/<str:os_user_id>/', views.solution, name="solution"), 
     path('solution/<str:question_type>/<int:question_id>/<str:os_user_id>/<int:step>/', views.solution, name="solution"), 
     path('complete/<str:question_type>/<int:question_id>/<str:os_user_id>/', views.complete, name="complete")

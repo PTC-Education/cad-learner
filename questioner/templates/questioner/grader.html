@@ -11,8 +11,16 @@
             <input type="submit" value="Return to Home Page"/>
         </form>
         <br />
-        <form action="{% url 'questioner:index' user.os_user_id %}">
+        <form action="{% url 'questioner:grade' user.os_user_id %}">
             <input type="submit" value="Get mass properties"/>
         </form>
+        {% if mass_props %}
+            {{ mass_props|safe }}
+            <br /><br />
+        {% endif %}
+        {% if doc_time %}
+            {{ doc_time|safe }}
+            <br /><br />
+        {% endif %}
     </body>
 </html>

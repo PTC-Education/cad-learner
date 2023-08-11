@@ -1,6 +1,6 @@
 import os 
 import requests
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Union 
 
 from django.shortcuts import render, redirect, get_object_or_404
@@ -77,7 +77,7 @@ def home(request: HttpRequest, os_user_id=None):
     return render(request, "questioner/home.html", context=context)
 
 # Create your views here.
-def grader(request: HttpRequest, os_user_id: str, time=None):
+def grader(request: HttpRequest, os_user_id: str, mass_props=None):
     """ 
     The auto grader page for checking a model's mass properties and time completion. 
 
@@ -94,8 +94,8 @@ def grader(request: HttpRequest, os_user_id: str, time=None):
     if os_user_id: 
         curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
         context['user'] = curr_user
-    if time:
-        context['time'] = time
+    if mass_props:
+        context['mass_props'] = mass_props
     return render(request, "questioner/grader.html", context=context)
 
 
@@ -426,6 +426,59 @@ def check_model(request: HttpRequest, question_type: str, question_id: int, os_u
         )
 
 
+def grade_model(request: HttpRequest, os_user_id: str): 
+    """ 
+    When a user submits a model, API calls are made to check if the 
+    model is dimensionally correct and placed in proper orientation. 
+    
+    **Context:**
+    
+    View to get time to completion and mass props compared to reference model
+    
+    **Arguments:**
+    
+    - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile 
+    
+    **Template:**
+    
+    :template:`questioner/grader.html`
+    """
+    curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+
+    # Refresh token if needed 
+    if curr_user.expires_at < timezone.now() + timedelta(minutes=20): 
+        curr_user.refresh_oauth_token() 
+    
+    mass_prop = get_mass_props(
+            curr_user.os_domain, curr_user.did, "w", curr_user.wid, curr_user.eid, curr_user.etype, 
+            massAsGroup=True, auth_token=curr_user.access_token
+        )
+    
+    doc_info = get_doc_info(curr_user.os_domain, curr_user.did, auth_token=curr_user.access_token)
+
+    if not mass_prop: # API error 
+        return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
+    else: # Submission failed 
+        mass_props = part_mass_check(user_prop= 
+            [
+                mass_prop['bodies']['-all-']['mass'][0], 
+                mass_prop['bodies']['-all-']['volume'][0], 
+                mass_prop['bodies']['-all-']['periphery'][0],
+                mass_prop['bodies']['-all-']['principalInertia'][0]
+            ]
+        )
+        doc_time = elapsed_time(doc_info['createdAt'],doc_info['modifiedAt'])
+        context={
+            "user": curr_user, 
+            "mass_props": mass_props,
+            "doc_time" : doc_time
+        }
+        return render(
+            request, "questioner/grader.html", 
+            context=context
+        )
+
+
 def solution(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, step=1): 
     """ 
     If a user gives up on the problem, some form of solution is presented.
@@ -516,3 +569,82 @@ def complete(request: HttpRequest, question_type: str, question_id: int, os_user
             "stats_display": curr_que.show_result(curr_user, show_best=show_best)
         }
     )
+
+
+#################### Helper API calls ####################
+
+def get_mass_props(
+    domain: str, did: str, wvm: str, wvmid: str, eid: str, etype: str, auth_token: str, massAsGroup=True
+) -> Any: 
+    """ Get the mass and geometry properties of the given element 
+    """
+    response = requests.get(
+        os.path.join(
+            domain, 
+            "api/{}/d/{}/{}/{}/e/{}/massproperties".format(
+            etype, did, wvm, wvmid, eid
+        )
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + auth_token
+        }, 
+        params={
+            "massAsGroup": massAsGroup
+        }
+    )
+    if response.ok: 
+        return response.json() 
+    else: 
+        return None
+
+
+def get_doc_info(
+    domain: str, did: str, auth_token: str
+) -> Any: 
+    """ Get the document info from the current document
+    """
+    response = requests.get(
+        os.path.join(
+            domain, 
+            "api/v6/documents/{}".format(did)
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + auth_token
+        }
+    )
+    if response.ok: 
+        return response.json() 
+    else: 
+        return None
+
+#################### Other helper functions ####################
+
+def part_mass_check(user_prop: Iterable[Any]
+) -> Union[bool, str]: 
+
+    mass_msg = '''
+    <table>
+        <tr>
+            <th>Properties</th>
+            <th>Values</th>
+        </tr>
+    '''
+    prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
+    for i, item in enumerate(prop_name): 
+        mass_msg += f'''
+        <tr>
+            <td>{item}</td>
+            <td>{user_prop[i]}</td>
+        </tr>
+        '''
+    return mass_msg + "</table>"
+
+def elapsed_time(start_time: str, stop_time: str):
+    createdAt = datetime.strptime(start_time.replace("T"," ").split("+")[0],'%Y-%m-%d %H:%M:%S.%f')
+    modifiedAt = datetime.strptime(stop_time.replace("T"," ").split("+")[0],'%Y-%m-%d %H:%M:%S.%f')
+    delta = modifiedAt - createdAt
+    return "<p>" + str(delta) + "</p>"
