@@ -11,13 +11,23 @@
             <input type="submit" value="Return to Home Page"/>
         </form>
         <br />
+        <!-- Grade model -->
         <form action="{% url 'questioner:grade' user.os_user_id %}">
-            <input type="submit" value="Get mass properties"/>
+            <input type="submit" value="Grade model"/>
+            <br>
+            <!-- Input reference model you want to compare -->
+            {% if ref_url %}
+                <input type="text" name="ref_url" id="referenceModel" value={{ref_url|safe}} title="Copy/paste reference model" size="50" />
+            {% else %}
+                <input type="text" name="ref_url" id="referenceModel" placeholder="Reference url..." title="Copy/paste reference model" size="50" />
+            {% endif %}
         </form>
+        <h3>Mass Property comparison</h3>
         {% if mass_props %}
             {{ mass_props|safe }}
             <br /><br />
         {% endif %}
+        <h3>Time from document creation to last modified</h3>
         {% if doc_time %}
             {{ doc_time|safe }}
             <br /><br />

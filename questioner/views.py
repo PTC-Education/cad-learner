@@ -437,41 +437,110 @@ def grade_model(request: HttpRequest, os_user_id: str):
     
     **Arguments:**
     
-    - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile 
+    - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile
+    - ``ref_url``: the reference element for the model to be compared to
     
     **Template:**
     
     :template:`questioner/grader.html`
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    ref_url = get_ref_url_ids(request.GET.get('ref_url'))
 
     # Refresh token if needed 
     if curr_user.expires_at < timezone.now() + timedelta(minutes=20): 
         curr_user.refresh_oauth_token() 
     
-    mass_prop = get_mass_props(
+    user_mass_prop = get_mass_props(
             curr_user.os_domain, curr_user.did, "w", curr_user.wid, curr_user.eid, curr_user.etype, 
             massAsGroup=True, auth_token=curr_user.access_token
         )
     
+    ref_mass_prop = None
+    if ref_url:
+        ref_mass_prop = get_mass_props(
+                    curr_user.os_domain, ref_url['did'], "w", ref_url['wid'], ref_url['eid'], curr_user.etype, 
+                    massAsGroup=True, auth_token=curr_user.access_token
+                )
+    else:
+        ref_prop=None
+    
     doc_info = get_doc_info(curr_user.os_domain, curr_user.did, auth_token=curr_user.access_token)
 
-    if not mass_prop: # API error 
+    if not user_mass_prop: # API error 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
-    else: # Submission failed 
-        mass_props = part_mass_check(user_prop= 
-            [
-                mass_prop['bodies']['-all-']['mass'][0], 
-                mass_prop['bodies']['-all-']['volume'][0], 
-                mass_prop['bodies']['-all-']['periphery'][0],
-                mass_prop['bodies']['-all-']['principalInertia'][0]
-            ]
-        )
-        doc_time = elapsed_time(doc_info['createdAt'],doc_info['modifiedAt'])
+    else: 
+        err_tol = 0.005
+        if curr_user.etype == "partstudios":
+            if ref_mass_prop:
+                try:
+                    ref_prop= [
+                        ref_mass_prop['bodies']['-all-']['mass'][0], 
+                        ref_mass_prop['bodies']['-all-']['volume'][0], 
+                        ref_mass_prop['bodies']['-all-']['periphery'][0],
+                        ref_mass_prop['bodies']['-all-']['principalInertia'][0]
+                    ]
+                except:
+                    ref_prop=None
+            user_prop= [
+                    user_mass_prop['bodies']['-all-']['mass'][0], 
+                    user_mass_prop['bodies']['-all-']['volume'][0], 
+                    user_mass_prop['bodies']['-all-']['periphery'][0],
+                    user_mass_prop['bodies']['-all-']['principalInertia'][0]
+                ]
+        elif curr_user.etype == "assemblies":
+            if ref_mass_prop:
+                try:
+                    ref_prop= [
+                        ref_mass_prop['mass'][0], 
+                        ref_mass_prop['volume'][0], 
+                        ref_mass_prop['periphery'][0],
+                        ref_mass_prop['principalInertia'][0]
+                    ]
+                except:
+                    ref_prop=None
+            user_prop= [
+                    user_mass_prop['mass'][0], 
+                    user_mass_prop['volume'][0], 
+                    user_mass_prop['periphery'][0],
+                    user_mass_prop['principalInertia'][0]
+                ]
+        
+        if ref_prop:
+            check_symbols=[]
+            for i, item in enumerate(ref_prop): 
+                # Check for accuracy 
+                if (
+                    item * (1 - err_tol) > user_prop[i] or 
+                    user_prop[i] > item * (1 + err_tol)
+                ): 
+                    check_symbols.append("&#x2717;")
+                else: 
+                    check_symbols.append("&#x2713;")
+                # Round for display 
+                if item < 0.1 or item > 99: 
+                    ref_prop[i] = '{:.2e}'.format(ref_prop[i])
+                    user_prop[i] = '{:.2e}'.format(user_prop[i])
+                else: 
+                    ref_prop[i] = round(ref_prop[i], 3)
+                    user_prop[i] = round(user_prop[i], 3)
+        else:
+            check_symbols=None
+            for i, item in enumerate(user_prop): 
+                # Round for display 
+                if item < 0.1 or item > 99: 
+                    user_prop[i] = '{:.2e}'.format(user_prop[i])
+                else: 
+                    user_prop[i] = round(user_prop[i], 3)
+
+        mass_props = part_mass_check(user_prop=user_prop, ref_prop=ref_prop, check_symbols=check_symbols)
+
+        doc_time = elapsed_time(doc_info['defaultWorkspace']['createdAt'],doc_info['defaultWorkspace']['modifiedAt'])
         context={
             "user": curr_user, 
             "mass_props": mass_props,
-            "doc_time" : doc_time
+            "doc_time" : doc_time,
+            "ref_url" : request.GET.get('ref_url')
         }
         return render(
             request, "questioner/grader.html", 
@@ -608,7 +677,7 @@ def get_doc_info(
     response = requests.get(
         os.path.join(
             domain, 
-            "api/v6/documents/{}".format(did)
+            "api/documents/{}".format(did)
         ), 
         headers={
             "Content-Type": "application/json", 
@@ -623,28 +692,61 @@ def get_doc_info(
 
 #################### Other helper functions ####################
 
-def part_mass_check(user_prop: Iterable[Any]
+def part_mass_check(user_prop: Iterable[Any], ref_prop: Iterable[Any]=None, check_symbols: Iterable[Any]=None
 ) -> Union[bool, str]: 
-
-    mass_msg = '''
-    <table>
-        <tr>
-            <th>Properties</th>
-            <th>Values</th>
-        </tr>
-    '''
-    prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
-    for i, item in enumerate(prop_name): 
-        mass_msg += f'''
-        <tr>
-            <td>{item}</td>
-            <td>{user_prop[i]}</td>
-        </tr>
+    
+    if ref_prop:
+        mass_msg = '''
+        <table>
+            <tr>
+                <th>Properties</th>
+                <th>User Values</th>
+                <th>Ref Values</th>
+                <th>Check</th>
+            </tr>
         '''
-    return mass_msg + "</table>"
+        prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
+        for i, item in enumerate(prop_name): 
+            mass_msg += f'''
+            <tr>
+                <td>{item}</td>
+                <td>{user_prop[i]}</td>
+                <td>{ref_prop[i]}</td>
+                <td>{check_symbols[i]}</td>
+            </tr>
+            '''
+        return mass_msg + "</table>"
+    else:
+        mass_msg = '''
+        <table>
+            <tr>
+                <th>Properties</th>
+                <th>User Values</th>
+            </tr>
+        '''
+        prop_name = ["Mass (kg)", "Volume (m^3)", "Surface Area (m^2)", "Principal Inertia Min (kg.m^2)"]
+        for i, item in enumerate(prop_name): 
+            mass_msg += f'''
+            <tr>
+                <td>{item}</td>
+                <td>{user_prop[i]}</td>
+            </tr>
+            '''
+        return mass_msg + "</table><br><small>Reference URL can't be accessed or is a different element type</small>"
 
 def elapsed_time(start_time: str, stop_time: str):
     createdAt = datetime.strptime(start_time.replace("T"," ").split("+")[0],'%Y-%m-%d %H:%M:%S.%f')
     modifiedAt = datetime.strptime(stop_time.replace("T"," ").split("+")[0],'%Y-%m-%d %H:%M:%S.%f')
     delta = modifiedAt - createdAt
-    return "<p>" + str(delta) + "</p>"
+    time_formatted = str(delta).split(".")[0].split(":")
+    return "<p>" + time_formatted[0] + " hours, " + time_formatted[1] + " minutes, " + time_formatted[2] + " seconds" + "</p>"
+
+def get_ref_url_ids(ref_url: str):
+    try:
+        ref = dict()
+        ref['did'] = ref_url.split("documents/")[1].split("/w/")[0]
+        ref['wid'] = ref_url.split("/w/")[1].split("/e/")[0]
+        ref['eid'] = ref_url.split("/e/")[1].split("/")[0]
+        return ref
+    except:
+        return None
