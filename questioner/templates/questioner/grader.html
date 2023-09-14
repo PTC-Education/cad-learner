@@ -3,6 +3,12 @@
     <head>
         {% load static %}
         <link rel="stylesheet" href="{% static 'questioner/home.css' %}">
+        <!-- Load js for url fields -->
+        <script src="{% static 'questioner/url_fields.js' %}" type="text/javascript" defer></script>
+        <!-- Load js for handling export of csv -->
+        <script src="{% static 'questioner/download_csv.js' %}" type="text/javascript" defer></script>
+        <!-- Load loading_modelling function to enable loading screen -->
+        <script src="{% static 'questioner/loading.js' %}" type="text/javascript"></script>
     </head>
     <body>
         <!-- Return to the home page -->
@@ -15,22 +21,45 @@
         <form action="{% url 'questioner:grade' user.os_user_id %}">
             <input type="submit" value="Grade model"/>
             <br>
-            <!-- Input reference model you want to compare -->
-            {% if ref_url %}
-                <input type="text" name="ref_url" id="referenceModel" value={{ref_url|safe}} title="Copy/paste reference model" size="50" />
-            {% else %}
-                <input type="text" name="ref_url" id="referenceModel" placeholder="Reference url..." title="Copy/paste reference model" size="50" />
-            {% endif %}
+            <div id="url_field_form">
+                <!-- Input reference model you want to compare -->
+                {% if ref_urls %}
+                    {% for url in ref_urls %}
+                        {% if url != '' %}
+                            <input type="text" name="ref_url" id="referenceModel" value={{url|safe}} title="Copy/paste reference model" size="50" />
+                        {% else %}
+                            <input type="text" name="ref_url" id="referenceModel" placeholder="Onshape URL..." title="Copy/paste reference model" size="50" />
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <input type="text" name="ref_url" id="referenceModel" placeholder="Onshape URL..." title="Copy/paste reference model" size="50" />
+                {% endif %}
+            </div>
         </form>
-        <h3>Mass Property comparison</h3>
-        {% if mass_props %}
-            {{ mass_props|safe }}
-            <br /><br />
-        {% endif %}
+        <div class="controls">
+            <button class="add" onclick="add()">Add</button>
+            <button class="remove" onclick="remove()">Remove</button>
+        </div>
         <h3>Time from document creation to last modified</h3>
         {% if doc_time %}
             {{ doc_time|safe }}
             <br /><br />
+        {% endif %}
+        <br>
+        <h3>Table of ref url props</h3>
+        {% if ref_table %}
+            {{ ref_table|safe }}
+            <br /><br />
+            <button type="button" onclick="tableToCSV()">download CSV</button>
+        {% endif %}
+        <br>
+        {% if failed_urls %}
+        <p>We failed to get information from the followign reference URLs</p>
+        <ul>
+            {% for url in failed_urls %}
+                <li>{{ failed_urls|safe }}</li>
+            {% endfor %}
+        </ul>
         {% endif %}
     </body>
 </html>

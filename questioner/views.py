@@ -438,114 +438,114 @@ def grade_model(request: HttpRequest, os_user_id: str):
     **Arguments:**
     
     - ``os_user_id``: the unique ID linked to the user's :model:`questioner.AuthUser` profile
-    - ``ref_url``: the reference element for the model to be compared to
+    - ``ref_urls``: the reference element for the model to be compared to
     
     **Template:**
     
     :template:`questioner/grader.html`
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
-    ref_url = get_ref_url_ids(request.GET.get('ref_url'))
+    ref_urls = request.GET.getlist('ref_url')
 
     # Refresh token if needed 
     if curr_user.expires_at < timezone.now() + timedelta(minutes=20): 
         curr_user.refresh_oauth_token() 
     
+    # Get mass props of model the user currently has opened
     user_mass_prop = get_mass_props(
             curr_user.os_domain, curr_user.did, "w", curr_user.wid, curr_user.eid, curr_user.etype, 
             massAsGroup=True, auth_token=curr_user.access_token
         )
-    
-    ref_mass_prop = None
-    if ref_url:
-        ref_mass_prop = get_mass_props(
-                    curr_user.os_domain, ref_url['did'], "w", ref_url['wid'], ref_url['eid'], curr_user.etype, 
-                    massAsGroup=True, auth_token=curr_user.access_token
-                )
-    else:
-        ref_prop=None
-    
-    doc_info = get_doc_info(curr_user.os_domain, curr_user.did, auth_token=curr_user.access_token)
-
     if not user_mass_prop: # API error 
         return HttpResponse("An unexpected error has occurred. Please check internet connection and try relaunching the app in the part studio that you originally started this modelling question with ...")
-    else: 
-        err_tol = 0.005
+    # Get info about the document the user currently has opened
+    user_doc_info = get_doc_info(curr_user.os_domain, curr_user.did, auth_token=curr_user.access_token)
+    # Set list of user_props [mass, vol, periphery, principleInertia]
+    try:
         if curr_user.etype == "partstudios":
-            if ref_mass_prop:
-                try:
-                    ref_prop= [
-                        ref_mass_prop['bodies']['-all-']['mass'][0], 
-                        ref_mass_prop['bodies']['-all-']['volume'][0], 
-                        ref_mass_prop['bodies']['-all-']['periphery'][0],
-                        ref_mass_prop['bodies']['-all-']['principalInertia'][0]
-                    ]
-                except:
-                    ref_prop=None
-            user_prop= [
+            user_props = [
                     user_mass_prop['bodies']['-all-']['mass'][0], 
                     user_mass_prop['bodies']['-all-']['volume'][0], 
                     user_mass_prop['bodies']['-all-']['periphery'][0],
                     user_mass_prop['bodies']['-all-']['principalInertia'][0]
                 ]
         elif curr_user.etype == "assemblies":
-            if ref_mass_prop:
-                try:
-                    ref_prop= [
-                        ref_mass_prop['mass'][0], 
-                        ref_mass_prop['volume'][0], 
-                        ref_mass_prop['periphery'][0],
-                        ref_mass_prop['principalInertia'][0]
-                    ]
-                except:
-                    ref_prop=None
-            user_prop= [
+            user_props = [
                     user_mass_prop['mass'][0], 
                     user_mass_prop['volume'][0], 
                     user_mass_prop['periphery'][0],
                     user_mass_prop['principalInertia'][0]
                 ]
+        for i, prop in enumerate(user_props):
+            if prop < 0.1 or prop > 99: 
+                user_props[i] = '{:.2e}'.format(user_props[i])
+            else: 
+                user_props[i] = round(user_props[i], 3)
+    except:
+        user_props = None
+    
+    # Get info and mass props for all url's in ref doc list
+    ref_props = []
+    failed_urls = []
+    for i, url in enumerate(ref_urls):
+        ref_url = get_ref_url_ids(url)
+        try:
+            mass_prop = get_mass_props(
+                        curr_user.os_domain, ref_url['did'], "w", ref_url['wid'], ref_url['eid'], curr_user.etype, 
+                        massAsGroup=True, auth_token=curr_user.access_token
+                    )
+            if curr_user.etype == "partstudios":
+                doc_mass = mass_prop['bodies']['-all-']['mass'][0]
+            elif curr_user.etype == "assemblies":
+                doc_mass = mass_prop['mass'][0]
+            # Round for display
+            if doc_mass < 0.1 or doc_mass > 99: 
+                doc_mass = '{:.2e}'.format(doc_mass)
+            else: 
+                doc_mass = round(doc_mass, 3)
+            
+            doc_info = get_doc_info(curr_user.os_domain, ref_url['did'], auth_token=curr_user.access_token)
+            doc_name = doc_info['name']
+            doc_time = elapsed_time(doc_info['defaultWorkspace']['createdAt'],doc_info['defaultWorkspace']['modifiedAt'])
+            ref_props.append([doc_name, doc_time, doc_mass])
+        except:
+            failed_urls.append(url)
+    
+    if len(failed_urls) == 0:
+        failed_urls = None
+
+    ref_table = ref_table_create(ref_props)
+
+    err_tol = 0.005
+
+    if len(ref_props)>0 and user_props:
+        check_symbols=[]
+        for i, ref_prop in enumerate(ref_props): 
+            # Check for accuracy 
+            if (
+                ref_prop[2] * (1 - err_tol) > user_props[0] or 
+                user_props[0] > ref_prop[2] * (1 + err_tol)
+            ): 
+                check_symbols.append("&#x2717;")
+            else: 
+                check_symbols.append("&#x2713;")
+    else:
+        check_symbols=None
         
-        if ref_prop:
-            check_symbols=[]
-            for i, item in enumerate(ref_prop): 
-                # Check for accuracy 
-                if (
-                    item * (1 - err_tol) > user_prop[i] or 
-                    user_prop[i] > item * (1 + err_tol)
-                ): 
-                    check_symbols.append("&#x2717;")
-                else: 
-                    check_symbols.append("&#x2713;")
-                # Round for display 
-                if item < 0.1 or item > 99: 
-                    ref_prop[i] = '{:.2e}'.format(ref_prop[i])
-                    user_prop[i] = '{:.2e}'.format(user_prop[i])
-                else: 
-                    ref_prop[i] = round(ref_prop[i], 3)
-                    user_prop[i] = round(user_prop[i], 3)
-        else:
-            check_symbols=None
-            for i, item in enumerate(user_prop): 
-                # Round for display 
-                if item < 0.1 or item > 99: 
-                    user_prop[i] = '{:.2e}'.format(user_prop[i])
-                else: 
-                    user_prop[i] = round(user_prop[i], 3)
+    ref_table = ref_table_create(ref_props,check_symbols)
 
-        mass_props = part_mass_check(user_prop=user_prop, ref_prop=ref_prop, check_symbols=check_symbols)
-
-        doc_time = elapsed_time(doc_info['defaultWorkspace']['createdAt'],doc_info['defaultWorkspace']['modifiedAt'])
-        context={
-            "user": curr_user, 
-            "mass_props": mass_props,
-            "doc_time" : doc_time,
-            "ref_url" : request.GET.get('ref_url')
-        }
-        return render(
-            request, "questioner/grader.html", 
-            context=context
-        )
+    user_doc_time = elapsed_time(user_doc_info['defaultWorkspace']['createdAt'],user_doc_info['defaultWorkspace']['modifiedAt'])
+    context={
+        "user": curr_user, 
+        "doc_time" : user_doc_time,
+        "ref_table" : ref_table,
+        "failed_urls" : failed_urls,
+        "ref_urls" : ref_urls
+    }
+    return render(
+        request, "questioner/grader.html", 
+        context=context
+    )
 
 
 def solution(request: HttpRequest, question_type: str, question_id: int, os_user_id: str, step=1): 
@@ -734,12 +734,57 @@ def part_mass_check(user_prop: Iterable[Any], ref_prop: Iterable[Any]=None, chec
             '''
         return mass_msg + "</table><br><small>Reference URL can't be accessed or is a different element type</small>"
 
+def ref_table_create(ref_props: Iterable[Any]=None, checks: Iterable[Any]=None) -> Union[bool, str]: 
+    
+    if checks:
+        ref_table = '''
+        <table>
+            <tr>
+                <th>Doc Name</th>
+                <th>Time</th>
+                <th>Mass</th>
+                <th>Check</th>
+            </tr>
+        '''
+        for i, item in enumerate(ref_props): 
+            ref_table += f'''
+            <tr>
+                <td>{item[0]}</td>
+                <td>{item[1]}</td>
+                <td>{item[2]}</td>
+                <td>{checks[i]}</td>
+            </tr>
+            '''
+        return ref_table + "</table>"
+    else:
+        ref_table = '''
+        <table>
+            <tr>
+                <th>Doc Name</th>
+                <th>Time</th>
+                <th>Mass</th>
+            </tr>
+        '''
+        for i, item in enumerate(ref_props): 
+            ref_table += f'''
+            <tr>
+                <td>{item[0]}</td>
+                <td>{item[1]}</td>
+                <td>{item[2]}</td>
+            </tr>
+            '''
+        return ref_table + "</table>"
+
+
 def elapsed_time(start_time: str, stop_time: str):
     createdAt = datetime.strptime(start_time.replace("T"," ").split("+")[0],'%Y-%m-%d %H:%M:%S.%f')
     modifiedAt = datetime.strptime(stop_time.replace("T"," ").split("+")[0],'%Y-%m-%d %H:%M:%S.%f')
     delta = modifiedAt - createdAt
     time_formatted = str(delta).split(".")[0].split(":")
-    return "<p>" + time_formatted[0] + " hours, " + time_formatted[1] + " minutes, " + time_formatted[2] + " seconds" + "</p>"
+    if "days" in time_formatted[0]:
+        return time_formatted[0].split(" days,")[0] + "D" + time_formatted[0].split(" days,")[1] + "H" + time_formatted[1] + "M" + time_formatted[2] + "S"
+    else:
+        return time_formatted[0] + "H" + time_formatted[1] + "M" + time_formatted[2] + "S"
 
 def get_ref_url_ids(ref_url: str):
     try:
