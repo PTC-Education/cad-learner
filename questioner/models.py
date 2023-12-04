@@ -1043,7 +1043,7 @@ class Question_ASMB(Question):
         # Compare property values 
         ref_model = self.model_inertia
         user_model = mass_prop['principalInertia']
-        err_allowance = 1e-8
+        err_allowance = 1e-7
 
         if abs(ref_model[0] - user_model[0]) > ref_model[0] * err_allowance: 
             # Did not pass and return failure messages 
