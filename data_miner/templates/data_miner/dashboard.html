@@ -5,6 +5,7 @@
         <link rel="stylesheet" href="{% static 'data_miner/dashboard.css' %}">
         <script src="{% static 'data_miner/dropdown.js' %}" type="text/javascript"></script>
         <script src="{% static 'data_miner/jquery-3.7.1.js' %}" type="text/javascript"></script>
+        <script src="{% static 'questioner/loading.js' %}" type="text/javascript"></script>
     </head>
     <body>
         <!-- Load app logo at the top of the page -->
@@ -39,7 +40,10 @@
         <script>
             $(document).ready(function () {
                 var url = "{% url 'data_miner:cumulative_question_attempts' %}";
-                // loading_spinner('features_user'); 
+                loading_spinner('cum_attempt_cnt'); 
+                loading_spinner('succ_fail_cnt'); 
+                loading_spinner('time_distribution'); 
+                loading_spinner('feature_count'); 
                 $.ajax({
                     url: url,
                     type: "GET",
@@ -87,7 +91,8 @@
                         },
                         error: function (error) {
                             console.log(error);
-                            $('#time_distribution').html("error");
+                            feature_count();
+                            $('#time_distribution').html("Error loading time distribution");
                     }
                     });
                 });
@@ -105,7 +110,7 @@
                         },
                         error: function (error) {
                             console.log(error);
-                            $('#feature_count').html("error");
+                            $('#feature_count').html("Error loading feature count distribution");
                     }
                     });
                 });
@@ -113,12 +118,20 @@
         </script>
 
         <!-- Distribution plots -->
-        <div id="cum_attempt_cnt">Hello</div>
+        <div class="spinner-container">
+            <div id="cum_attempt_cnt">Loading cummulative attempts</div>
+        </div>
         <br /><br />
-        <div id="succ_fail_cnt">Hello</div>
+        <div class="spinner-container">
+            <div id="succ_fail_cnt">Loading success/fail counts per question</div>
+        </div>
         <br /><br />
-        <div id="time_distribution">Hello</div>
+        <div class="spinner-container">
+            <div id="time_distribution">Loading time distribution</div>
+        </div>
         <br /><br />
-        <div id="feature_count">Hello</div>
+        <div class="spinner-container">
+            <div id="feature_count">Loading feature count distribution</div>
+        </div>
     </body>
 </html>
