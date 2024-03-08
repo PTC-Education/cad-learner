@@ -3,8 +3,8 @@
     <head>
         {% load static %}
         <link rel="stylesheet" href="{% static 'data_miner/dashboard.css' %}">
-        <script src="{% static 'data_miner/dropdown.js' %}" type="text/javascript
-        "></script>
+        <script src="{% static 'data_miner/dropdown.js' %}" type="text/javascript"></script>
+        <script src="{% static 'data_miner/jquery-3.7.1.js' %}" type="text/javascript"></script>
     </head>
     <body>
         <!-- Load app logo at the top of the page -->
@@ -35,13 +35,90 @@
                 Unique Users with App Logins: &nbsp<b>{{ user_login_total }}</b>
             </div>
         </div>
+
+        <script>
+            $(document).ready(function () {
+                var url = "{% url 'data_miner:cumulative_question_attempts' %}";
+                // loading_spinner('features_user'); 
+                $.ajax({
+                    url: url,
+                    type: "GET",
+                    data:{},
+                    success: function (response) {
+                        $('#cum_attempt_cnt').html("<img src="+ response['cum_attempt_cnt'] +" alt='' class='center'>");
+                        succ_fail_cnt();
+                    },
+                    error: function (error) {
+                        console.log(error);
+                        $('#cum_attempt_cnt').html("error");
+                }
+                });
+            });
+            function succ_fail_cnt() {
+                $(document).ready(function () {
+                    var url = "{% url 'data_miner:succ_fail_cnt' %}";
+                    // loading_spinner('features_user'); 
+                    $.ajax({
+                        url: url,
+                        type: "GET",
+                        data:{},
+                        success: function (response) {
+                            $('#succ_fail_cnt').html("<img src="+ response['succ_fail_cnt'] +" alt='' class='center'>");
+                            time_distribution();
+                        },
+                        error: function (error) {
+                            console.log(error);
+                            $('#succ_fail_cnt').html("error");
+                    }
+                    });
+                });
+            }
+            function time_distribution() {
+                $(document).ready(function () {
+                    var url = "{% url 'data_miner:time_distribution' %}";
+                    // loading_spinner('features_user'); 
+                    $.ajax({
+                        url: url,
+                        type: "GET",
+                        data:{},
+                        success: function (response) {
+                            $('#time_distribution').html("<img src="+ response['time_distribution'] +" alt='' class='center'>");
+                            feature_count();
+                        },
+                        error: function (error) {
+                            console.log(error);
+                            $('#time_distribution').html("error");
+                    }
+                    });
+                });
+            }
+            function feature_count() {
+                $(document).ready(function () {
+                    var url = "{% url 'data_miner:feature_count' %}";
+                    // loading_spinner('features_user'); 
+                    $.ajax({
+                        url: url,
+                        type: "GET",
+                        data:{},
+                        success: function (response) {
+                            $('#feature_count').html("<img src="+ response['feature_count'] +" alt='' class='center'>");
+                        },
+                        error: function (error) {
+                            console.log(error);
+                            $('#feature_count').html("error");
+                    }
+                    });
+                });
+            }
+        </script>
+
         <!-- Distribution plots -->
-        <img src="{{ cum_attempt_cnt }}" alt="" class="center">
+        <div id="cum_attempt_cnt">Hello</div>
         <br /><br />
-        <img src="{{ succ_fail_cnt }}" alt="" class="center"/> 
+        <div id="succ_fail_cnt">Hello</div>
         <br /><br />
-        <img src="{{ time_spent }}" alt="" class="center"/> 
+        <div id="time_distribution">Hello</div>
         <br /><br />
-        <img src="{{ features_used }}" alt="" class="center"/> 
+        <div id="feature_count">Hello</div>
     </body>
 </html>

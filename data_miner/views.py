@@ -6,10 +6,12 @@ import numpy as np
 from PIL import Image
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_agg import FigureCanvasAgg
+import requests
+import json
 
 import django_rq
 from django.shortcuts import render
-from django.http import HttpRequest
+from django.http import HttpRequest, HttpResponse
 from django.utils import timezone
 from django.db.models import QuerySet
 from django.core.exceptions import ObjectDoesNotExist
@@ -262,11 +264,21 @@ def dashboard(request: HttpRequest):
     
     # Simple counting 
     all_records = HistoryData.objects.all() 
+    context['all_records'] = all_records
     context['attempt_total'] = len(all_records)
     context['user_attempt_total'] = len(all_records.values('os_user_id').distinct())
     context['user_login_total'] = len(AuthUser.objects.all())
     
-    # Cumulative number of question attempts 
+    return render(request, "data_miner/dashboard.html", context=context)
+
+def cumulative_question_attempts(request: HttpRequest):
+    """
+    This AJAX view for creating a cumulative attempt plot
+    """
+    context = {} 
+
+    all_records = HistoryData.objects.all() 
+    
     temp = sorted(all_records, key=lambda x:x.start_time)
     cum_cnt_plot = Figure(figsize=(10, 6))
     ax = cum_cnt_plot.add_subplot(1, 1, 1)
@@ -277,12 +289,29 @@ def dashboard(request: HttpRequest):
     ax.set_ylabel("Cumulative Number of Question Attempts")
     cum_cnt_plot.tight_layout() 
     context['cum_attempt_cnt'] = convert_plot_to_str(cum_cnt_plot)
+
+    return HttpResponse(
+        json.dumps(context),
+        content_type="application/json"
+    )
+
+def succ_fail_cnt(request: HttpRequest):
+    """
+    This view provides a dashboard of analytics to present some basic statistics of the collected user data 
     
-    # Successful/Failed attempts counts of all questions 
-    x = np.arange(len(context['all_questions']))
-    y_succ = np.zeros(len(context['all_questions'])) 
-    y_fail = np.zeros(len(context['all_questions'])) 
-    for i, qid in enumerate([q.question_id for q in context['all_questions']]): 
+    **Template:** 
+    
+    :template:`data_miner/dashboard.html`
+    """
+    context = {} 
+
+    all_ques = Question.objects.filter(is_published=True)
+    all_ques = sorted(all_ques, key=lambda x:x.question_name)
+
+    x = np.arange(len(all_ques))
+    y_succ = np.zeros(len(all_ques)) 
+    y_fail = np.zeros(len(all_ques)) 
+    for i, qid in enumerate([q.question_id for q in all_ques]): 
         temp = HistoryData.objects.filter(question_id=qid)
         y_succ[i] = len(temp.filter(is_final_failure=False))
         y_fail[i] = len(temp) - y_succ[i]
@@ -297,13 +326,30 @@ def dashboard(request: HttpRequest):
     ax.set_xticks(x)
     ax.set_xticklabels([
         q.question_name + " (" + q.question_type + ")" 
-        for q in context['all_questions']
+        for q in all_ques
     ], rotation=90)
     ax.legend((p1[0], p2[0]), ("Successful", "Failed"))
     fig_cnt_bar.tight_layout()
     context['succ_fail_cnt'] = convert_plot_to_str(fig_cnt_bar)
+
+    return HttpResponse(
+        json.dumps(context),
+        content_type="application/json"
+    )
+
+def time_distribution(request: HttpRequest):
+    """
+    This view provides a dashboard of analytics to present some basic statistics of the collected user data 
     
-    # Time spent distributtion on all questions 
+    **Template:** 
+    
+    :template:`data_miner/dashboard.html`
+    """
+    context = {} 
+
+    all_ques = Question.objects.filter(is_published=True)
+    all_ques = sorted(all_ques, key=lambda x:x.question_name)
+
     y_time = [
         calc_time_spent(
             D_Type_Dict[q.question_type].objects.filter(
@@ -311,7 +357,7 @@ def dashboard(request: HttpRequest):
             ), 
             q.question_id, all=True
         ) 
-        for q in context['all_questions']
+        for q in all_ques
     ]
     fig_time_dist = Figure(figsize=(10, 6)) 
     ax = fig_time_dist.add_subplot(1, 1, 1)
@@ -321,12 +367,29 @@ def dashboard(request: HttpRequest):
     ax.set_xticks(np.arange(len(y_time)))
     ax.set_xticklabels([
         q.question_name + " (" + q.question_type + ")" 
-        for q in context['all_questions']
+        for q in all_ques
     ], rotation=90)
     fig_time_dist.tight_layout()
-    context['time_spent'] = convert_plot_to_str(fig_time_dist)
+    context['time_distribution'] = convert_plot_to_str(fig_time_dist)
+
+    return HttpResponse(
+        json.dumps(context),
+        content_type="application/json"
+    )
+
+def feature_count(request: HttpRequest):
+    """
+    This view provides a dashboard of analytics to present some basic statistics of the collected user data 
     
-    # Number of features used in all questions 
+    **Template:** 
+    
+    :template:`data_miner/dashboard.html`
+    """
+    context = {} 
+
+    all_ques = Question.objects.filter(is_published=True)
+    all_ques = sorted(all_ques, key=lambda x:x.question_name)
+
     y_cnt = [
         calc_feature_cnt(
             D_Type_Dict[q.question_type].objects.filter(
@@ -334,7 +397,7 @@ def dashboard(request: HttpRequest):
             ), 
             q.question_id
         ) 
-        for q in context['all_questions']
+        for q in all_ques
     ] 
     fea_use_dist = Figure(figsize=(10, 6)) 
     ax = fea_use_dist.add_subplot(1, 1, 1)
@@ -344,13 +407,15 @@ def dashboard(request: HttpRequest):
     ax.set_xticks(np.arange(len(y_cnt)))
     ax.set_xticklabels([
         q.question_name + " (" + q.question_type + ")" 
-        for q in context['all_questions']
+        for q in all_ques
     ], rotation=90)
     fea_use_dist.tight_layout()
-    context['features_used'] = convert_plot_to_str(fea_use_dist)
-    
-    return render(request, "data_miner/dashboard.html", context=context)
+    context['feature_count'] = convert_plot_to_str(fea_use_dist)
 
+    return HttpResponse(
+        json.dumps(context),
+        content_type="application/json"
+    )
 
 def dashboard_question(request: HttpRequest, qid: int): 
     """
