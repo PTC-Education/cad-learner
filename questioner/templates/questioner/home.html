@@ -20,7 +20,13 @@
         <!-- Welcome message and FAQ's -->
         <div>
             <h1 id="details">Detailed Instructions</h1>
-            <p>When opening the app, you will be presented with a list of all of the available questions.  You may filter the questions by selecting a difficulty category, Easy, Medium, or Challenging.  Or you may search for specifc questions using the search bar. Clicking a question will reveal the "Start this question" button, as well as some details about the question such as average modeling time.</p>
+            {% if user == None %}
+                <h2>Opening the App</h2>
+                <p>After subscribing to CAD Challenges, the app will be available as a right-pannel app within Onshape.  Simply open a blank Part Studio or Assembly tab, depending on the type of challege you are attempting, and you will see the app icon on the right side of the screen, as in the image below.</p>
+                <p><img id="right-panel" src="{% static 'questioner/images/right-panel.png' %}" alt="right-panel"/></p>
+            {% endif %}
+            <h2>Starting a Challenge</h2>
+            <p>After opening the app, you will be presented with a list of all of the available questions.  You may filter the questions by selecting a difficulty category, Easy, Medium, or Challenging.  Or you may search for specifc questions using the search bar. Clicking a question will reveal the "Start this question" button, as well as some details about the question such as average modeling time.</p>
             <p>Make sure you are in an empty part studio tab and click the "Start this question" button to begin modeling.  If you are not in an empty part studio tab, you will receive an error message.</p>
             <p>Once you click the start button, the timer will begin and you will be presented with a standard part drawing with dimensioned 2D orthographic views, and usually a shaded isometric view.  There is also a title block at the bottom.  Use the views and dimensions to model the part, accurately and quickly.</p>
             <p>When you are done modeling, press the "Submit" button.  Your part will be assessed based on various mass properties and a table will indicate whether your part matches the expected values or not.  If not, you can keep modeling and re-submit.</p>
