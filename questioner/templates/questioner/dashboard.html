@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <link rel="stylesheet" href="{% static 'questioner/dashboard.css' %}">
+        <link rel="shortcut icon" type="image/svg" href="{% static 'questioner/images/icon.svg' %}" >
+    </head>
+    <body>
+    
+        <!-- Return to the home page -->
+        <form action="{% url 'questioner:index' user.os_user_id %}">
+            <input type="submit" value="&lt; Home"/>
+        </form>
+        <!-- Load app logo at the top of the page -->
+        <div id="logo">
+            <img id="logo" src="{% static 'questioner/images/logo.svg' %}" alt="app_logo"/>
+        </div>
+        
+        <!-- Welcome message and FAQ's -->
+        <div>
+            <h1>User Dashboard</h1>
+            <p>Is Reviewer: {{ user.is_reviewer }}</p>
+            <p>My User ID: {{ user.os_user_id }}</p>
+            <p>My Completed History: {{ user.completed_history }}</p>
+            <h2 id="contact_us">Contact Us</h2>
+            <p><a href="mailto:edutech@ptc.com">edutech@ptc.com</a></p>
+        </div>
+        <!-- Return to the home page -->
+        <br />
+        <form action="{% url 'questioner:index' user.os_user_id %}">
+            <input type="submit" value="&lt; Home"/>
+        </form>
+    </body>
+</html>

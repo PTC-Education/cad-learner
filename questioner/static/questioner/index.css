@@ -2,6 +2,7 @@
 body {
     color: #333;
     font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
+    font-size: 14px;
 }
     
 h3 {
@@ -38,10 +39,12 @@ ol {
 
 /* Style the app logo at the center top of the page */ 
 #logo{
-    position: relative;
     margin-top: 10px;
     margin-left: 2.5%;
-    align-items: center;
+    text-align: center;
+}
+#app_logo {
+    width: 80%;
 }
 
 /* Style the search menu */
