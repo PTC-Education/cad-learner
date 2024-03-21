@@ -1,5 +1,6 @@
 import os 
 import requests
+from math import floor
 from datetime import timedelta
 from typing import Union 
 
@@ -196,10 +197,21 @@ def dashboard(request: HttpRequest, os_user_id: str):
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
 
-    context = {"user": curr_user}
+    for k,v in curr_user.completed_history.items():
+        for i in v:
+            print(i[1])
+            i[1] = secsToTime(i[1])
 
+    context = {"user": curr_user}
+    context["questions"] = Question.objects.order_by("question_name")
+    
     return render(request, "questioner/dashboard.html", context=context)
 
+def secsToTime(secs):
+    secs = round(secs)
+    mins = floor(secs/60)
+    secsR = secs - mins*60
+    return str(mins) + ":" + f"{secsR:02d}"
 
 def index(request: HttpRequest, os_user_id: str): 
     """ 

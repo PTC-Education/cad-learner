@@ -19,9 +19,20 @@
         <!-- Welcome message and FAQ's -->
         <div>
             <h1>User Dashboard</h1>
-            <p>Is Reviewer: {{ user.is_reviewer }}</p>
-            <p>My User ID: {{ user.os_user_id }}</p>
-            <p>My Completed History: {{ user.completed_history }}</p>
+            <p><strong>Is Reviewer:</strong> {{ user.is_reviewer }}</p>
+            <p><strong>My User ID:</strong> {{ user.os_user_id }}</p>
+            <p><strong>My Completed History:</strong></p>
+            <ul>
+                {% for k,v in user.completed_history.items %}
+                    <li>{{ k }} ({% for i in v %}{{i.1}}{% if v|last != i %}, {% endif %}{% endfor %})</li>
+                {% endfor %}
+            </ul>
+            <p><strong>All Questions:</strong></p>
+            <ul>
+                {% for question in questions %}
+                    <li>{{ question.question_name}}</li>
+                {% endfor %}
+            </ul>
             <h2 id="contact_us">Contact Us</h2>
             <p><a href="mailto:edutech@ptc.com">edutech@ptc.com</a></p>
         </div>
