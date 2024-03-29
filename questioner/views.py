@@ -197,21 +197,18 @@ def dashboard(request: HttpRequest, os_user_id: str):
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
 
-    for k,v in curr_user.completed_history.items():
-        for i in v:
-            print(i[1])
-            i[1] = secsToTime(i[1])
+    for key in curr_user.completed_history:
+        for i,attempt in enumerate(curr_user.completed_history[key]):
+            curr_user.completed_history[key][i][1] = "{} min {} sec".format(
+            int(attempt[1] // 60), int(attempt[1] % 60)
+        )
+    print(curr_user.completed_history)
 
     context = {"user": curr_user}
     context["questions"] = Question.objects.order_by("question_name")
     
     return render(request, "questioner/dashboard.html", context=context)
 
-def secsToTime(secs):
-    secs = round(secs)
-    mins = floor(secs/60)
-    secsR = secs - mins*60
-    return str(mins) + ":" + f"{secsR:02d}"
 
 def index(request: HttpRequest, os_user_id: str): 
     """ 

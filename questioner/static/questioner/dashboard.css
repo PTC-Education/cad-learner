@@ -1,24 +1,140 @@
+/* Main font and color style */
 body {
     color: #333;
     font-family: Flama,Open Sans,Helvetica Neue,Helvetica,Arial,sans-serif;
-    padding-left: 5%;
-    padding-right: 5%;
     font-size: 14px;
 }
-
-h1 {
-    font-size: 1.5em;
+    
+h3 {
+    margin-bottom: 0px;
 }
 
-#logo {
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-    padding: 0px 20px;
+ol {
+    margin-top: .2em;
+    margin-bottom: .2em;
+}
+
+.details {
+    margin:.5em 0em;
+    font-style: italic;
+    font-size: .8em;
+}
+#disclaimer {
+    position: fixed;
+    width: 100%;
+    left: 0;
+    bottom: 0;
+    text-align: center;
+    padding: 4px;
+    font-size: 10px;
+    background-color: white;
+    margin-bottom: 0px;
+    margin-top: 0px;
+    box-sizing: border-box;
+}
+
+#err_msg {
+    color: red;
+}
+
+/* Style the app logo at the center top of the page */ 
+#logo{
+    margin-top: 10px;
+    margin-left: 2.5%;
+    text-align: center;
+}
+#app_logo {
     width: 80%;
 }
 
-/* Style the submit button to return home */ 
+/* Style the search menu */
+#searchInput {
+    width: 98%;
+    height: 1.5em;
+    font-size: 14px;
+    padding-left: 11px;
+    border: 1px 1px solid #ddd;
+}
+
+/* Style the button groups for difficulty and type filtering */
+.level-group input.radio, .type-group input.radio {
+	display: none;
+}
+
+.level-group input.radio ~ label, .type-group input.radio ~ label {
+    border-radius: 5px;
+    background-color: #eee;
+	float: left;
+	line-height: 1.5em; 
+    text-align: center;
+    margin-top: 1em;
+	cursor: pointer;
+    font-size: 14px;
+}
+
+.level-group input.radio ~ label {
+    width: 25%;
+}
+
+.type-group input.radio ~ label {
+    width: 20%;
+}
+
+.level-group input.radio:hover ~ label, .level-group input.radio:checked ~ label, .type-group input.radio:hover ~ label, .type-group input.radio:checked ~ label{
+    background-color: #bbb;
+}
+
+#reviewer_filter {
+    margin-bottom: 1em;
+}
+
+/* Style the buttons that are used to open and close the accordion panel */
+.accordion {
+    background-color: #eee;
+    color: #444;
+    cursor: pointer;
+    padding: 18px;
+    width: 100%;
+    text-align: left;
+    border: auto;
+    border-radius: 5px;
+    outline: none;
+    transition: 0.4s;
+    display: block;
+}
+
+/* Add a background color to the button if it is clicked on (add the .active class with JS), and when you move the mouse over it (hover) */
+.active, .accordion:hover {
+    background-color: #ccc;
+}
+
+/* Style the accordion panel. Note: hidden by default */
+.panel {
+    padding: 0 18px;
+    outline: none;
+    display: block;
+    border: 2px solid black;
+    border-radius: 10px;
+    background-color: white;
+    overflow: hidden;
+}
+
+/* Add a symbol to each button to indicate whether the collapsible content is open or closed */ 
+.accordion:after {
+    content: '\002B'; 
+    font-size: 2em;
+    font-weight: bold;
+    color: #777; 
+    position: absolute;  
+    right: 5%;
+    margin-top: 10px;
+}
+
+.active:after {
+    content: '\2212'; 
+}
+
+/* Style the submit button of forms */ 
 input[type=submit] {
     padding: 10px 10px;
     cursor: pointer;
@@ -32,7 +148,24 @@ input[type=submit]:hover {
     background-color: #bbb;
 }
 
-#right-panel {
-    width: 800px;
-    max-width: 100%;
+/* Loader */
+.loader {
+    border: 16px solid #f3f3f3;
+    border-radius: 50%;
+    border-top: 16px solid #3498db;
+    width: 120px;
+    height: 120px;
+    -webkit-animation: spin 2s linear infinite; /* Safari */
+    animation: spin 2s linear infinite;
+}
+
+/* Loader in Safari */
+@-webkit-keyframes spin {
+    0% { -webkit-transform: rotate(0deg); }
+    100% { -webkit-transform: rotate(360deg); }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }

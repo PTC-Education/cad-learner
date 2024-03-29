@@ -2,7 +2,8 @@
 <html lang="en-US">
     <head>
         {% load static %}
-        <link rel="stylesheet" href="{% static 'questioner/dashboard.css' %}">
+        <!-- <link rel="stylesheet" href="{% static 'questioner/dashboard.css' %}"> -->
+        <link rel="stylesheet" href="{% static 'questioner/index.css' %}">
         <link rel="shortcut icon" type="image/svg" href="{% static 'questioner/images/icon.svg' %}" >
     </head>
     <body>
@@ -19,20 +20,68 @@
         <!-- Welcome message and FAQ's -->
         <div>
             <h1>User Dashboard</h1>
-            <p><strong>Is Reviewer:</strong> {{ user.is_reviewer }}</p>
-            <p><strong>My User ID:</strong> {{ user.os_user_id }}</p>
-            <p><strong>My Completed History:</strong></p>
-            <ul>
-                {% for k,v in user.completed_history.items %}
-                    <li>{{ k }} ({% for i in v %}{{i.1}}{% if v|last != i %}, {% endif %}{% endfor %})</li>
-                {% endfor %}
-            </ul>
-            <p><strong>All Questions:</strong></p>
-            <ul>
-                {% for question in questions %}
-                    <li>{{ question.question_name}}</li>
-                {% endfor %}
-            </ul>
+            {% if user.is_reviewer %}
+                <p><strong>Is Reviewer:</strong> {{ user.is_reviewer }}</p>
+                <p><strong>My User ID:</strong> {{ user.os_user_id }}</p>
+            {% endif %}
+            <p><strong>Completed Challenges:</strong></p>
+            <section id="menu">
+            {% for question in questions %}
+                {% if question|stringformat:"s" in user.completed_history.keys %}
+                    <div class="question"> 
+                        <!-- Present every document as an accordion-->
+                        <button class="accordion" style="display: block;">
+                            <img src="{{ question.thumbnail }}" alt="" /> 
+                            <h3>&nbsp;&nbsp;&nbsp;&nbsp;{{ question.question_name }}</h3>
+                        </button>
+                        <div class="panel" style="display: block;">
+                            <ul class="info_list">
+                                <!-- Completion count -->
+                                {% for k,v in user.completed_history.items %}
+                                    {% if k == question|stringformat:"s" %}
+                                        <li>You have completed this question {{ v|length }} {% if v|length == 1 %}time{% else %}times{% endif %}</li>
+                                        <ul>
+                                        {% for attempt in v %}
+                                            <li>Attempt {{ forloop.counter }}: {{ attempt.1 }}</li>
+                                        {% endfor %}
+                                        </ul>
+                                    {% endif %}
+                                {% endfor %}
+                                <!-- Average completion time spent -->
+                                {% if question.completion_count > 0 %}
+                                    <li>Avg time (all users): {{ question.get_avg_time }}</li>
+                                {% endif %}
+                                <!-- Question type -->
+                                {% if question.question_type == 'MSPS' %}
+                                    {% if question.question_msps.is_multi_part %}
+                                        <li class="q_type">Challenge type: Multi-part Part Studio (Multi-Step)</li>
+                                    {% else %}
+                                        <li class="q_type">Challenge type: Single-part Part Studio (Multi-Step)</li>
+                                    {% endif %}
+                                {% else %}
+                                    <li class="q_type">Challenge type: {{ question.get_question_type_display }}</li>
+                                {% endif %}
+                                <!-- Update difficulty_filter.js if changing <li> here -->
+                                {% if question.difficulty == "EA" %}
+                                    <li class="difficulty">Difficulty: Easy</li>
+                                {% elif question.difficulty == "ME" %}
+                                    <li class="difficulty">Difficulty: Medium</li>
+                                {% elif question.difficulty == "CH" %}
+                                    <li class="difficulty">Difficulty: Challenging</li>
+                                {% else %}
+                                    <li class="difficulty">Difficulty: Unclassified</li>
+                                {% endif %}
+                            </ul>
+                            <!-- Button to see best performance -->
+                            <form action="{% url 'questioner:complete' question.question_type question.question_id user.os_user_id %}">
+                                <input type="hidden" name="best" value="1"/>
+                                <input type="submit" value="View fastest attempt"/>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+            </section>
             <h2 id="contact_us">Contact Us</h2>
             <p><a href="mailto:edutech@ptc.com">edutech@ptc.com</a></p>
         </div>
@@ -41,5 +90,11 @@
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="&lt; Home"/>
         </form>
+        <!-- Disclaimer -->
+        <div>
+            <p id="disclaimer"><a href="{% url 'questioner:dashboard' user.os_user_id %}">User Dashboard</a> | <a href="{% url 'questioner:home' user.os_user_id %}#terms-of-service">Terms of Service</a> | <a href="{% url 'questioner:home' user.os_user_id %}#details">Detailed Instructions</a> | <a href="https://docs.google.com/forms/d/e/1FAIpQLSeOcFJo3V05CMtQSAXmmiF22xdfsdaob7_tBCTCDEwZVdVRwA/viewform?usp=sf_link">Feedback</a></p>
+        </div>
+        <!-- Enable hide-and-show for accordions -->
+        <script src="{% static 'questioner/accordion.js' %}" type="text/javascript"></script>
     </body>
 </html>
