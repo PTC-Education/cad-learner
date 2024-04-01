@@ -1,5 +1,6 @@
 import os 
 import requests
+from math import floor
 from datetime import timedelta
 from typing import Union 
 
@@ -180,6 +181,33 @@ def authorize(request: HttpRequest):
     user.save() 
 
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
+
+
+def dashboard(request: HttpRequest, os_user_id: str):
+    """ 
+    User Dashboard
+    - Challenge history
+    - Certificate progress
+
+    **Arguments:**
+    - ``os_user_id``: identify the :model:`questioner.AuthUser` model with the user's login information.
+
+    **Template:**
+    :template:`questioner/dashboard.html`
+    """
+    curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+
+    for key in curr_user.completed_history:
+        for i,attempt in enumerate(curr_user.completed_history[key]):
+            curr_user.completed_history[key][i][1] = "{} min {} sec".format(
+            int(attempt[1] // 60), int(attempt[1] % 60)
+        )
+    print(curr_user.completed_history)
+
+    context = {"user": curr_user}
+    context["questions"] = Question.objects.order_by("question_name")
+    
+    return render(request, "questioner/dashboard.html", context=context)
 
 
 def index(request: HttpRequest, os_user_id: str): 

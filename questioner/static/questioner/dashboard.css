@@ -100,7 +100,7 @@ ol {
     border-radius: 5px;
     outline: none;
     transition: 0.4s;
-    display: inline-flex;
+    display: block;
 }
 
 /* Add a background color to the button if it is clicked on (add the .active class with JS), and when you move the mouse over it (hover) */
@@ -112,7 +112,7 @@ ol {
 .panel {
     padding: 0 18px;
     outline: none;
-    display: none;
+    display: block;
     border: 2px solid black;
     border-radius: 10px;
     background-color: white;
