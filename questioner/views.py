@@ -196,17 +196,29 @@ def dashboard(request: HttpRequest, os_user_id: str):
     :template:`questioner/dashboard.html`
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+    difficulty_count = {'EA':0,'ME':0,'CH':0}
+    types_count = {'SPPS':0,'MPPS':0,'MSPS':0,'ASMB':0}
 
     for key in curr_user.completed_history:
+        num = key.split('_')[1]
+        chall_type = key.split('_')[0]
+        try:
+            difficulty_count[Question.objects.filter(question_id=num).values('difficulty')[0]['difficulty']] += 1
+            types_count[chall_type] += 1
+        except:
+            pass
+
         for i,attempt in enumerate(curr_user.completed_history[key]):
             curr_user.completed_history[key][i][1] = "{} min {} sec".format(
             int(attempt[1] // 60), int(attempt[1] % 60)
         )
-    print(curr_user.completed_history)
 
     context = {"user": curr_user}
     context["questions"] = Question.objects.order_by("question_name")
-    
+    context["difficulty_count"] = difficulty_count
+    context["types_count"] = types_count
+    context["total_count"] = len(curr_user.completed_history.keys())
+
     return render(request, "questioner/dashboard.html", context=context)
 
 

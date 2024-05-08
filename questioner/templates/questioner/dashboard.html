@@ -24,6 +24,10 @@
                 <p><strong>Is Reviewer:</strong> {{ user.is_reviewer }}</p>
                 <p><strong>My User ID:</strong> {{ user.os_user_id }}</p>
             {% endif %}
+            <p><strong>Activity Overview:</strong></p>
+            <p>You have completed {{ total_count }} challenges.</p>
+            <p>This includes {{ difficulty_count.EA }} Easy, {{ difficulty_count.ME }} Medium, and {{ difficulty_count.CH }} Challenging challenges.</p>
+            <p>You've done {{ types_count.SPPS }} Single Part, {{ types_count.MPPS }} Multi-Part, {{ types_count.MSPS }} Multi-Step, and {{ types_count.ASMB }} Assembly challenges.</p>
             <p><strong>Completed Challenges:</strong></p>
             <section id="menu">
             {% for question in questions %}
