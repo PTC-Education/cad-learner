@@ -19,7 +19,11 @@
         <form action="{% url 'questioner:index' user.os_user_id %}">
             <input type="submit" value="Return to Home Page"/>
         </form>
-        <br /><br />
+        <!-- Return to user dashboard -->
+        <form action="{% url 'questioner:dashboard' user.os_user_id %}">
+            <input type="submit" value="Return to User Dashboard"/>
+        </form>
+        <br />
         <!-- Show statistical comparisons if available -->
         {% if stats_display %} 
             {{ stats_display|safe }}
