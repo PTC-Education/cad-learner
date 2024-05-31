@@ -20,11 +20,12 @@
         <!-- Welcome message and FAQ's -->
         <div>
             <h1>User Dashboard</h1>
+            {{ user.user_name }}
             {% if user.is_reviewer %}
                 <p><strong>Is Reviewer:</strong> {{ user.is_reviewer }}</p>
                 <p><strong>My User ID:</strong> {{ user.os_user_id }}</p>
             {% endif %}
-            <p><strong>Completed Challenges:</strong></p>
+            <h3>Completed Challenges</h3>
             <section id="menu">
             {% for question in questions %}
                 {% if question|stringformat:"s" in user.completed_history.keys %}
@@ -82,6 +83,11 @@
                 {% endif %}
             {% endfor %}
             </section>
+            <h3>Certificates</h3>
+            <!-- Certificate -->
+            <div class="cert_div">
+                <img class="cert_image" src="data:image/png;base64,{{ cert_image }}">
+            </div>
             <h2 id="contact_us">Contact Us</h2>
             <p><a href="mailto:edutech@ptc.com">edutech@ptc.com</a></p>
         </div>

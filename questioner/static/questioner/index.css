@@ -169,3 +169,15 @@ input[type=submit]:hover {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Dashboard */
+.cert_image {
+    width: 100%;
+}
+
+.cert_div {
+    max-width: 50%;
+    border: 1px solid;
+    display: flex;
+    width:fit-content;
+}

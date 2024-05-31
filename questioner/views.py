@@ -1,8 +1,10 @@
-import os 
+import os
+import io
 import requests
 from math import floor
-from datetime import timedelta
-from typing import Union 
+from datetime import timedelta, date
+from typing import Union
+from PIL import Image, ImageDraw, ImageFont
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
@@ -10,10 +12,10 @@ from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, HttpRes
 from django.utils import timezone 
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
 
 from .models import * 
 from data_miner.views import collect_fail_data, collect_final_data, collect_multi_step_data
-
 
 Q_Type_Dict = {
     QuestionType.SINGLE_PART_PS: Question_SPPS, 
@@ -22,7 +24,6 @@ Q_Type_Dict = {
     QuestionType.MULTI_STEP_PS: Question_MSPS
 }
 _Q_TYPES_HINT = Union[Question_SPPS, Question_MPPS, Question_ASMB, Question_MSPS]
-
 
 def should_collect_data(user: AuthUser, question: _Q_TYPES_HINT) -> bool: 
     """ Storage space is expensive, and using the data_miner takes up space. 
@@ -182,6 +183,34 @@ def authorize(request: HttpRequest):
 
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
 
+def create_cert_image():
+    static_dir = 'questioner' + settings.STATIC_URL + 'questioner/'
+    image_path = os.path.join(static_dir, 'images', 'cert.png')
+    font_path = os.path.join(static_dir, 'fonts', 'Raleway-Medium.ttf')
+
+    img = Image.open(image_path)
+    draw = ImageDraw.Draw(img)
+    
+    # Add text to the image
+    name = "Matthew W. Shields"
+    cert_text = "Part Modeling"
+    date_text = date.today().strftime("%B %d, %Y")
+    name_pos = (650, 660)
+    cert_pos = (670, 818)
+    date_pos = (870, 890)
+    text_color = (51, 51, 51)
+    name_font = ImageFont.truetype(font_path, 80)
+    cert_font = ImageFont.truetype(font_path, 50)
+    draw.text(name_pos, name, font=name_font, fill=text_color)
+    draw.text(cert_pos, cert_text, font=cert_font, fill=text_color)
+    draw.text(date_pos, date_text, font=cert_font, fill=text_color)
+
+    # Save the image to a BytesIO object
+    img_io = io.BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+    return img_base64
 
 def dashboard(request: HttpRequest, os_user_id: str):
     """ 
@@ -202,9 +231,10 @@ def dashboard(request: HttpRequest, os_user_id: str):
             curr_user.completed_history[key][i][1] = "{} min {} sec".format(
             int(attempt[1] // 60), int(attempt[1] % 60)
         )
-    print(curr_user.completed_history)
+            
+    cert_image = create_cert_image()
 
-    context = {"user": curr_user}
+    context = {"user": curr_user, "cert_image": cert_image}
     context["questions"] = Question.objects.order_by("question_name")
     
     return render(request, "questioner/dashboard.html", context=context)
