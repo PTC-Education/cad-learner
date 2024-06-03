@@ -183,7 +183,7 @@ def authorize(request: HttpRequest):
 
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
 
-def create_cert_image():
+def create_cert_image(curr_user):
     static_dir = 'questioner' + settings.STATIC_URL + 'questioner/'
     image_path = os.path.join(static_dir, 'images', 'cert.png')
     font_path = os.path.join(static_dir, 'fonts', 'Raleway-Medium.ttf')
@@ -191,17 +191,20 @@ def create_cert_image():
     img = Image.open(image_path)
     draw = ImageDraw.Draw(img)
     
+    user_name = get_user_name(curr_user)
+
     # Add text to the image
-    name = "Matthew W. Shields"
+    certW = 1648
     cert_text = "Part Modeling"
     date_text = date.today().strftime("%B %d, %Y")
-    name_pos = (650, 660)
+    name_font = ImageFont.truetype(font_path, 80)
+    cert_font = ImageFont.truetype(font_path, 50)
+    w, h = draw.textsize(user_name, font=name_font)
+    name_pos = ((certW-w)/2 + 170, 660)
     cert_pos = (670, 818)
     date_pos = (870, 890)
     text_color = (51, 51, 51)
-    name_font = ImageFont.truetype(font_path, 80)
-    cert_font = ImageFont.truetype(font_path, 50)
-    draw.text(name_pos, name, font=name_font, fill=text_color)
+    draw.text(name_pos, user_name, font=name_font, fill=text_color)
     draw.text(cert_pos, cert_text, font=cert_font, fill=text_color)
     draw.text(date_pos, date_text, font=cert_font, fill=text_color)
 
@@ -232,7 +235,7 @@ def dashboard(request: HttpRequest, os_user_id: str):
             int(attempt[1] // 60), int(attempt[1] % 60)
         )
             
-    cert_image = create_cert_image()
+    cert_image = create_cert_image(curr_user)
 
     context = {"user": curr_user, "cert_image": cert_image}
     context["questions"] = Question.objects.order_by("question_name")
