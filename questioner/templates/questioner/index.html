@@ -98,6 +98,11 @@
                     <button class="accordion">
                         <img src="{{ question.thumbnail }}" alt="" /> 
                         <h3>&nbsp;&nbsp;&nbsp;&nbsp;{{ question.question_name }}</h3>
+                        {% if question.question_name == "Arduino Enclosure" %}
+                            <div class="cert_assem">ASSEM</div>
+                        {% elif question.question_name == "Connecting Rod" %}
+                            <div class="cert_surf">SURF</div>
+                        {% endif %}
                     </button>
                     <div class="panel">
                         <ul class="info_list">
