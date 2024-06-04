@@ -434,6 +434,11 @@ class Question_SPPS(Question):
     
     Only one part is required to be modelled in one Onshape Part Studio within one step, material needs to be assigned 
     """
+    err_tolerance = models.FloatField(
+        "Custom tolerance for challenge", null=True, default=0.005, blank=True,
+        help_text="Input custom tolerance for challenge (input in decimal percent - default is 0.005 for part studios)"
+    ) 
+
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
         default=list, help_text="List of feature counts required by users to complete the question in history"
@@ -506,6 +511,11 @@ class Question_SPPS(Question):
         # Check if mass is given 
         if not mass_prop['bodies']['-all-']['hasMass']: 
             return "Please remember to assign a material to your part.", False
+        
+        if self.err_tolerance is None:
+            err_tol = 0.005
+        else:
+            err_tol = self.err_tolerance
 
         # Compare property values 
         eval_correct = single_part_geo_check( 
@@ -515,7 +525,8 @@ class Question_SPPS(Question):
                 mass_prop['bodies']['-all-']['volume'][0], 
                 mass_prop['bodies']['-all-']['periphery'][0],
                 mass_prop['bodies']['-all-']['principalInertia'][0]
-            ]
+            ],
+            err_tol=err_tol
         )
         if not type(eval_correct) is bool: 
             # Return failure messages 
@@ -664,6 +675,10 @@ class Question_MPPS(Question):
     
     Optinally, a starting Onshape Part Studio can be imported to the user's working Part Studio for further modifications and design 
     """
+    err_tolerance = models.FloatField(
+        "Custom tolerance for challenge", null=True, default=0.005, blank=True,
+        help_text="Input custom tolerance for challenge (input in decimal percent - default is 0.005 for part studios)"
+    ) 
     # Additional question information 
     starting_eid = models.CharField(
         "Starting element ID", max_length=40, default=None, null=True, blank=True, 
@@ -785,6 +800,11 @@ class Question_MPPS(Question):
         for item in part_list: 
             partId_to_name[item['partId']] = item['name']
         
+        if self.err_tolerance is None:
+                    err_tol = 0.005
+        else:
+            err_tol = self.err_tolerance
+
         # Compare property values 
         eval_correct = multi_part_geo_check(
             self, 
@@ -794,7 +814,8 @@ class Question_MPPS(Question):
                 [prt['periphery'][0] for prt in mass_prop['bodies'].values()], 
                 [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()], 
                 [partId_to_name[prt] for prt in mass_prop['bodies'].keys()]
-            ]
+            ],
+            err_tol=err_tol
         )
         if not type(eval_correct) is bool: 
             if not user.end_mid: # first failure 
@@ -955,6 +976,10 @@ class Question_ASMB(Question):
     
     Only one assembly of parts is required to be mated into specific configurations in one Onshape Assembly within one step
     """
+    err_tolerance = models.FloatField(
+        "Custom tolerance for challenge", null=True, default=1e-7, blank=True,
+        help_text="Input custom tolerance for challenge (input in decimal percent - default is 1e-7 for assemblies)"
+    ) 
     # Additional question information 
     starting_eid = models.CharField(
         "Source Part Studio element ID", max_length=40, default=None, null=True, 
@@ -1043,7 +1068,11 @@ class Question_ASMB(Question):
         # Compare property values 
         ref_model = self.model_inertia
         user_model = mass_prop['principalInertia']
-        err_allowance = 1e-7
+        
+        if self.err_tolerance is None:
+            err_allowance = 1e-7
+        else:
+            err_allowance = self.err_tolerance
 
         if abs(ref_model[0] - user_model[0]) > ref_model[0] * err_allowance: 
             # Did not pass and return failure messages 
@@ -1916,7 +1945,7 @@ def plot_dist(
 
 
 def single_part_geo_check(
-    question: Union[Question_SPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol=0.005
+    question: Union[Question_SPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol = 0.005
 ) -> Union[bool, str]: 
     """ The model is considered to be correct if all properties of the user's model 
     falls within the properties of the reference model ± err_tol. 
@@ -1973,7 +2002,7 @@ def single_part_geo_check(
 
 
 def multi_part_geo_check(
-    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol=0.005
+    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol
 ) -> Union[bool, str]: 
         """ The model is considered to be correct if for every part in the reference model, 
         there is one and only one part in the user's model with matching properties. 
