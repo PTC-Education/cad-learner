@@ -199,6 +199,11 @@ def dashboard(request: HttpRequest, os_user_id: str):
     difficulty_count = {'EA':0,'ME':0,'CH':0}
     types_count = {'SPPS':0,'MPPS':0,'MSPS':0,'ASMB':0}
 
+    certificates = []
+    ## certificates array has one element for each certificate with [certname, [completed challenges], [incompleted challenges]]
+    for certificate in Certificate.objects.order_by('certificate_name'):
+        certificates.append([certificate.certificate_name,[],certificate.required_challenges])
+    
     for key in curr_user.completed_history:
         num = key.split('_')[1]
         chall_type = key.split('_')[0]
@@ -207,6 +212,11 @@ def dashboard(request: HttpRequest, os_user_id: str):
             types_count[chall_type] += 1
         except:
             pass
+        
+        for i, cert in enumerate(certificates):
+            if int(num) in cert[2]:
+                certificates[i][2].remove(int(num))
+                certificates[i][1].append(int(num))
 
         for i,attempt in enumerate(curr_user.completed_history[key]):
             curr_user.completed_history[key][i][1] = "{} min {} sec".format(
@@ -218,6 +228,7 @@ def dashboard(request: HttpRequest, os_user_id: str):
     context["difficulty_count"] = difficulty_count
     context["types_count"] = types_count
     context["total_count"] = len(curr_user.completed_history.keys())
+    context["certificates"] = certificates
 
     return render(request, "questioner/dashboard.html", context=context)
 

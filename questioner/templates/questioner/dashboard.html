@@ -23,6 +23,15 @@
             {% if user.is_reviewer %}
                 <p><strong>Is Reviewer:</strong> {{ user.is_reviewer }}</p>
                 <p><strong>My User ID:</strong> {{ user.os_user_id }}</p>
+                <p><strong>Certificates</strong></p>
+                {% for certificate in certificates %}
+                    {% if certificate.2|length == 0 %}
+                        <p>You have earned {{ certificate.0 }}</p>
+                    {% else %}
+                        <p>You must complete {% if certificate.2|length == 1 %}challenge{% else %}challenges{% endif %} {% for cert in certificate.2 %}{{cert}}, {% endfor %}to earn {{ certificate.0 }}</p>
+                    {% endif %}
+
+                {% endfor %}
             {% endif %}
             <p><strong>Activity Overview:</strong></p>
             <p>You have completed {{ total_count }} challenges.</p>

@@ -219,6 +219,41 @@ class Reviewer(models.Model):
         return super().delete(using, keep_parents)
 
 
+class Certificate(models.Model):
+    """
+    This is the class for keeping track of the certificates and their required challenges
+
+    Each row consists of the name of a certificate, the required challenges, and the basic template for the certificate that names are added to
+    """
+    certificate_name = models.CharField(
+        max_length=400, null=True, unique=True, 
+        help_text="A unique name for the certificate that will be displayed to the users"
+    )
+    required_challenges = models.JSONField(
+        default=list, null=True, 
+        help_text="An array (i.e. [4,12,23]) of the unique challenge id's required for certificate"
+    )
+    did = models.CharField("Onshape document ID", max_length=40, default=None)
+    vid = models.CharField("Onshape version ID", max_length=40, default=None)
+    jpeg_eid = models.CharField("Onshape JPEG element ID", max_length=40, default=None,
+                                help_text="Element ID for JPEG of certificate template")
+    drawing_eid = models.CharField("Onshape Drawing Template element ID", max_length=40, default=None,
+                                   help_text="Element ID for drawing template of certificate")
+    drawing_jpeg = models.TextField(
+        null=True, help_text="The exported JPEG image of the question stored as a base64 JPEG image"
+    )
+
+    def save(self, *args, **kwargs): 
+        """
+        Default actions when a certificate is saved, either first added or updated afterward 
+        """
+        if not self.drawing_jpeg: 
+            self.drawing_jpeg = get_jpeg_drawing(
+                self.did, self.vid, self.jpeg_eid, 
+                get_admin_token()
+            )
+        return super().save(*args, **kwargs)
+
 class Question(models.Model): 
     """ 
     This is the base class for all question types. 
