@@ -27,6 +27,8 @@
                 {% for certificate in certificates %}
                     {% if certificate.2|length == 0 %}
                         <p>You have earned {{ certificate.0 }}</p>
+                        <p><img src="{{ certificate.3 }}" width="60%"/></p>
+                        <!-- <p><img src="data:image/png;base64,{{ certificate.3 }}" width="60%"/></p> -->
                     {% else %}
                         <p>You must complete {% if certificate.2|length == 1 %}challenge{% else %}challenges{% endif %} {% for cert in certificate.2 %}{{cert}}, {% endfor %}to earn {{ certificate.0 }}</p>
                     {% endif %}

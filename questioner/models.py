@@ -1907,6 +1907,23 @@ def get_part_list(
     else: 
         return None 
 
+def get_user_name(user: AuthUser) -> Any: 
+    response = requests.get(
+        os.path.join(
+            user.os_domain, 
+            "api/users/sessioninfo"
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + user.access_token
+        }
+    )
+    if response.ok:
+        response = response.json()
+        return response['name']
+    else: 
+        return None 
 
 #################### Other helper functions ####################
 def plot_dist(

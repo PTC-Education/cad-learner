@@ -1,8 +1,10 @@
 import os 
 import requests
 from math import floor
-from datetime import timedelta
+from datetime import timedelta, date
 from typing import Union 
+from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
+import logging
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
@@ -183,6 +185,38 @@ def authorize(request: HttpRequest):
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
 
 
+def create_cert_image(curr_user, base_jpeg):
+
+    jpeg_bytes = base64.b64decode(base_jpeg)
+
+    img = Image.open(io.BytesIO(jpeg_bytes))
+
+    draw = ImageDraw.Draw(img)
+
+    user_name = get_user_name(curr_user)
+
+    # # Add text to the image
+    # certW = 1648
+    # cert_text = "Part Modeling"
+    # date_text = date.today().strftime("%B %d, %Y")
+    # name_font = ImageFont.truetype(font_path, 80)
+    # cert_font = ImageFont.truetype(font_path, 50)
+    # w, h = draw.textsize(user_name, font=name_font)
+    # name_pos = ((certW-w)/2 + 170, 660)
+    # cert_pos = (670, 818)
+    # date_pos = (870, 890)
+    # text_color = (51, 51, 51)
+    # draw.text(name_pos, user_name, font=name_font, fill=text_color)
+    # draw.text(cert_pos, cert_text, font=cert_font, fill=text_color)
+    # draw.text(date_pos, date_text, font=cert_font, fill=text_color)
+
+    # Save the image to a BytesIO object
+    img_io = io.BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+    img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+    return img_base64
+
 def dashboard(request: HttpRequest, os_user_id: str):
     """ 
     User Dashboard
@@ -200,9 +234,12 @@ def dashboard(request: HttpRequest, os_user_id: str):
     types_count = {'SPPS':0,'MPPS':0,'MSPS':0,'ASMB':0}
 
     certificates = []
+
     ## certificates array has one element for each certificate with [certname, [completed challenges], [incompleted challenges]]
     for certificate in Certificate.objects.order_by('certificate_name'):
-        certificates.append([certificate.certificate_name,[],certificate.required_challenges])
+        base_jpeg = certificate.drawing_jpeg
+        
+        certificates.append([certificate.certificate_name,[],certificate.required_challenges, base_jpeg])
     
     for key in curr_user.completed_history:
         num = key.split('_')[1]
