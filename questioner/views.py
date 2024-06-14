@@ -3,8 +3,7 @@ import requests
 from math import floor
 from datetime import timedelta, date
 from typing import Union 
-from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
-import logging
+from PIL import Image, ImageDraw, ImageFont
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
@@ -12,6 +11,7 @@ from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, HttpRes
 from django.utils import timezone 
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
 
 from .models import * 
 from data_miner.views import collect_fail_data, collect_final_data, collect_multi_step_data
@@ -185,38 +185,48 @@ def authorize(request: HttpRequest):
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
 
 
-def create_cert_image(curr_user, base_jpeg):
-
-    jpeg_bytes = base64.b64decode(base_jpeg)
-
-    img = Image.open(io.BytesIO(jpeg_bytes))
-
-    draw = ImageDraw.Draw(img)
-
-    user_name = get_user_name(curr_user)
-
-    # # Add text to the image
-    # certW = 1648
-    # cert_text = "Part Modeling"
-    # date_text = date.today().strftime("%B %d, %Y")
-    # name_font = ImageFont.truetype(font_path, 80)
-    # cert_font = ImageFont.truetype(font_path, 50)
-    # w, h = draw.textsize(user_name, font=name_font)
-    # name_pos = ((certW-w)/2 + 170, 660)
-    # cert_pos = (670, 818)
-    # date_pos = (870, 890)
-    # text_color = (51, 51, 51)
-    # draw.text(name_pos, user_name, font=name_font, fill=text_color)
-    # draw.text(cert_pos, cert_text, font=cert_font, fill=text_color)
-    # draw.text(date_pos, date_text, font=cert_font, fill=text_color)
-
-    # Save the image to a BytesIO object
-    img_io = io.BytesIO()
-    img.save(img_io, 'PNG')
-    img_io.seek(0)
-    img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
-    return img_base64
-
+def create_cert_png(curr_user, cert_name, base64_jpeg_data, cert_date):
+    static_dir = 'questioner' + settings.STATIC_URL + 'questioner/'
+    font_path = os.path.join(static_dir, 'fonts', 'Raleway-Medium.ttf')
+    print(cert_date)
+    if base64_jpeg_data.startswith('data:image/jpeg;base64,'):
+        base64_jpeg = base64_jpeg_data[len('data:image/jpeg;base64,'):]
+    try:
+        # Decode the base64 string into bytes
+        jpeg_bytes = base64.b64decode(base64_jpeg)
+        print("Base64 string successfully decoded")
+        try:
+            img = Image.open(io.BytesIO(jpeg_bytes))
+            draw = ImageDraw.Draw(img)
+            user_name = get_user_name(curr_user)
+            # Add text to the image
+            certW = 3300
+            cert_text = cert_name
+            date_text = cert_date #date.today().strftime("%B %d, %Y")
+            name_font = ImageFont.truetype(font_path, 150)
+            cert_font = ImageFont.truetype(font_path, 100)
+            nameW, h = draw.textsize(user_name, font=name_font)
+            titleW, h = draw.textsize(cert_text, font=cert_font)
+            dateW, h = draw.textsize(date_text, font=cert_font)
+            name_pos = ((certW-nameW)/2, 1200)
+            cert_pos = ((certW-titleW)/2, 1600)
+            date_pos = ((certW-dateW)/2, 1850)
+            text_color = (51, 51, 51)
+            draw.text(name_pos, user_name, font=name_font, fill=text_color)
+            draw.text(cert_pos, cert_text, font=cert_font, fill=text_color)
+            draw.text(date_pos, date_text, font=cert_font, fill=text_color)
+            img_io = io.BytesIO()
+            img.save(img_io, 'PNG')
+            print("successfully converted to png")
+            img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+            return img_base64
+        except Exception as e:
+            print(f"Error opening image: {e}")
+            return HttpResponse(f"Error opening image: {e}", status=400)
+    except Exception as e:
+        print(f"General error: {e}")
+        return HttpResponse(f"Error converting image: {str(e)}", status=500)
+      
 def dashboard(request: HttpRequest, os_user_id: str):
     """ 
     User Dashboard
@@ -235,10 +245,9 @@ def dashboard(request: HttpRequest, os_user_id: str):
 
     certificates = []
 
-    ## certificates array has one element for each certificate with [certname, [completed challenges], [incompleted challenges]]
+    ## certificates array has one element for each certificate with [certname, [completed challenges], [incompleted challenges], cert_image]
     for certificate in Certificate.objects.order_by('certificate_name'):
         base_jpeg = certificate.drawing_jpeg
-        
         certificates.append([certificate.certificate_name,[],certificate.required_challenges, base_jpeg])
     
     for key in curr_user.completed_history:
@@ -259,6 +268,19 @@ def dashboard(request: HttpRequest, os_user_id: str):
             curr_user.completed_history[key][i][1] = "{} min {} sec".format(
             int(attempt[1] // 60), int(attempt[1] % 60)
         )
+    
+    dates = []
+    for i, cert in enumerate(certificates):
+        if len(cert[2]) == 0:
+            for key, value in curr_user.completed_history.items():
+                num = int(key.split('_')[1])
+                if num in cert[1]:
+                    for cert_date in value:
+                        dates.append(cert_date[0])
+            dates.sort(reverse=True)
+            base_jpeg = cert[3]
+            cert_image = create_cert_png(curr_user, cert[0], base_jpeg, dates[0])
+            certificates[i][3] = cert_image
 
     context = {"user": curr_user}
     context["questions"] = Question.objects.order_by("question_name")
