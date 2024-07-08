@@ -243,6 +243,22 @@ class Certificate(models.Model):
         null=True, help_text="The exported JPEG image of the question stored as a base64 JPEG image"
     )
 
+    # This boolean indicates when the system check is passed 
+    is_published = models.BooleanField(
+        default=False, help_text="Users can only see the certificate after it is published"
+    )
+
+    def publish(self) -> None: 
+        """
+        Publish if currently not ``is_published`` and ``publishable``; otherwise, set question to be not ``is_published``
+        """
+        if self.is_published: 
+            self.is_published = False 
+        else: 
+            self.is_published = True 
+        self.save()
+        return None 
+
     def save(self, *args, **kwargs): 
         """
         Default actions when a certificate is saved, either first added or updated afterward 

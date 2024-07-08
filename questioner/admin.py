@@ -39,11 +39,11 @@ class Reviewer_Admin(admin.ModelAdmin):
 
 class Certificate_Admin(admin.ModelAdmin): 
     list_display = [
-        'certificate_name', 'required_challenges'
+        'certificate_name', 'required_challenges', 'is_published'
     ] 
     search_fields = ['certificate_name']
     exclude = ['drawing_jpeg']
-    actions = ['force_update']
+    actions = ['force_update','publish_certificate']
 
     @admin.action(description="Force update selected certificate")
     def force_update(self, request: HttpRequest, queryset: QuerySet[Certificate]) -> None:
@@ -52,6 +52,11 @@ class Certificate_Admin(admin.ModelAdmin):
         for item in queryset: 
             item.drawing_jpeg = None 
             item.save() 
+
+    @admin.action(description="Publish/Hide selected certificate")
+    def publish_certificate(self, request: HttpRequest, queryset: QuerySet[Certificate]) -> None: 
+        for item in queryset: 
+            item.publish() 
 
     def delete_queryset(self, request: HttpRequest, queryset: QuerySet[Certificate]) -> None:
         """ Override the default delete function 
