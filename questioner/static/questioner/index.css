@@ -205,3 +205,23 @@ input[type=submit]:hover {
 .cert_mp {
     background-color: #D12C3A;
 }
+
+.challenge_title {
+    font-size: 1.17em;
+    margin-top: 1em;
+    margin-left: 0.5em;
+    font-weight: bold;
+}
+
+.cert_title {
+    font-size: 0.7em;
+    margin-left: 0.9em;
+    color: #333;
+}
+
+.cert_tag {
+    background-color: #FAB601;
+    color:#fff;
+    padding: 1px 2px;
+    border-radius: 4px;
+}
