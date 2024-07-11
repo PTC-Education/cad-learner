@@ -98,12 +98,14 @@
                     <button class="accordion">
                         <img src="{{ question.thumbnail }}" alt="" /> 
                         <h3>&nbsp;&nbsp;&nbsp;&nbsp;{{ question.question_name }}</h3>
-                        {% if question.question_name == "Arduino Enclosure" %}
-                            <div class="cert cert_assem">ASSEM</div>
-                        {% elif question.question_name == "Connecting Rod" %}
-                            <div class="cert cert_surf">SURF</div>
-                        {% elif question.question_name == "Fan Mounting Bracket" %}
+                        {% if question.cert_type == "Part Modeling" %}
                             <div class="cert cert_part">PART</div>
+                        {% elif question.cert_type == "Multi-Step" %}
+                            <div class="cert cert_ms">MS</div>
+                        {% elif question.cert_type == "Assembly" %}
+                            <div class="cert cert_assem">ASSEM</div>
+                        {% elif question.cert_type == "Multi-Part" %}
+                            <div class="cert cert_mp">MP</div>
                         {% endif %}
                     </button>
                     <div class="panel">

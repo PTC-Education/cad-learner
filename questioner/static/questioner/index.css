@@ -194,10 +194,14 @@ input[type=submit]:hover {
     background-color: #40AA1D;
 }
 
-.cert_surf {
+.cert_ms {
     background-color: #C37729;
 }
 
 .cert_part {
     background-color: #197BC0;
+}
+
+.cert_mp {
+    background-color: #D12C3A;
 }

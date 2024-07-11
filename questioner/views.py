@@ -312,11 +312,22 @@ def index(request: HttpRequest, os_user_id: str):
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
 
+    certs = {}
+    for certificate in Certificate.objects.order_by('certificate_name'):
+        certs[certificate.certificate_name] = certificate.required_challenges
+
     context = {"user": curr_user}
     if curr_user.is_reviewer: 
         context["questions"] = Question.objects.order_by("question_name")
     else: 
         context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+
+    for question in context['questions']:
+        question.cert_type = None
+        for k, v in certs.items():
+            if question.question_id in v:
+                question.cert_type = k
+
     return render(request, "questioner/index.html", context=context)
 
 
