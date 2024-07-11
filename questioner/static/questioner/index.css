@@ -217,6 +217,7 @@ input[type=submit]:hover {
     font-size: 0.7em;
     margin-left: 0.9em;
     color: #333;
+    margin-top: 3px;
 }
 
 .cert_tag {
