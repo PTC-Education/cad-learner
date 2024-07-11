@@ -170,7 +170,7 @@ input[type=submit]:hover {
     100% { transform: rotate(360deg); }
 }
 
-/* Dashboard */
+/* Certificates */
 .cert_image {
     width: 100%;
 }
@@ -180,4 +180,24 @@ input[type=submit]:hover {
     border: 1px solid;
     display: flex;
     width:fit-content;
+}
+
+.cert {
+    font-size: 10px;
+    margin: 16px 0px 0px 5px;
+    color: #fff;
+    padding: 2px;
+    border-radius: 4px;
+}
+
+.cert_assem {
+    background-color: #40AA1D;
+}
+
+.cert_surf {
+    background-color: #C37729;
+}
+
+.cert_part {
+    background-color: #197BC0;
 }
