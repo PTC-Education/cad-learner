@@ -182,30 +182,6 @@ input[type=submit]:hover {
     width:fit-content;
 }
 
-.cert {
-    font-size: 10px;
-    margin: 16px 0px 0px 5px;
-    color: #fff;
-    padding: 2px;
-    border-radius: 4px;
-}
-
-.cert_assem {
-    background-color: #40AA1D;
-}
-
-.cert_ms {
-    background-color: #C37729;
-}
-
-.cert_part {
-    background-color: #197BC0;
-}
-
-.cert_mp {
-    background-color: #D12C3A;
-}
-
 .challenge_title {
     font-size: 1.17em;
     margin-top: 1em;
