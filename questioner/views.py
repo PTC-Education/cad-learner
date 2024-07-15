@@ -322,11 +322,13 @@ def index(request: HttpRequest, os_user_id: str):
     else: 
         context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
 
+    cert_type_map = {}
+    for cert_type, ids in certs.items():
+        for question_id in ids:
+            cert_type_map[question_id] = cert_type
+
     for question in context['questions']:
-        question.cert_type = None
-        for k, v in certs.items():
-            if question.question_id in v:
-                question.cert_type = k
+        question.cert_type = cert_type_map.get(question.question_id, None)
 
     return render(request, "questioner/index.html", context=context)
 
