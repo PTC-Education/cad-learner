@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        {% load static %}
+        <!-- <link rel="stylesheet" href="{% static 'questioner/dashboard.css' %}"> -->
+        <link rel="stylesheet" href="{% static 'questioner/index.css' %}">
+        <link rel="shortcut icon" type="image/svg" href="{% static 'questioner/images/icon.svg' %}" >
+    </head>
+    <body>
+    
+        <div class="cert_logo"><img src="{% static 'questioner/images/logo.svg' %}" /></div>
+        <div class="cert_image"><img src="data:image/png;base64,{{ cert_image }}"/></div>    
+        
+    </body>
+</html>

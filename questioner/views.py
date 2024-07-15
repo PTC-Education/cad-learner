@@ -245,10 +245,10 @@ def dashboard(request: HttpRequest, os_user_id: str):
 
     certificates = []
 
-    ## certificates array has one element for each certificate with [certname, [completed challenges], [incompleted challenges], cert_image]
+    # certificates array for each certificate [certname, [completed challenges], [incompleted challenges], cert_id, cert_date]
     for certificate in Certificate.objects.order_by('certificate_name'):
         base_jpeg = certificate.drawing_jpeg
-        certificates.append([certificate.certificate_name,[],certificate.required_challenges, base_jpeg])
+        certificates.append([certificate.certificate_name,[],certificate.required_challenges, certificate.id, ""])
     
     for key in curr_user.completed_history:
         num = key.split('_')[1]
@@ -278,9 +278,8 @@ def dashboard(request: HttpRequest, os_user_id: str):
                     for cert_date in value:
                         dates.append(cert_date[0])
             dates.sort(reverse=True)
-            base_jpeg = cert[3]
-            cert_image = create_cert_png(curr_user, cert[0], base_jpeg, dates[0])
-            certificates[i][3] = cert_image
+            certificates[i][3] = cert[3]
+            certificates[i][4] = dates[0]
 
     context = {"user": curr_user}
     context["questions"] = Question.objects.order_by("question_name")
@@ -291,6 +290,29 @@ def dashboard(request: HttpRequest, os_user_id: str):
 
     return render(request, "questioner/dashboard.html", context=context)
 
+def certificate(request: HttpRequest, os_user_id: str, cert_name: str, cert_id: int, cert_date: str):
+    """ 
+    Certificate display
+
+    **Arguments:**
+    - ``os_user_id``: identify the :model:`questioner.AuthUser` model with the user's login information.
+
+    **Template:**
+    :template:`questioner/certificate.html`
+    """
+    curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+
+    try:
+        certificate = Certificate.objects.get(id=cert_id)
+        base_jpeg = certificate.drawing_jpeg
+    except Certificate.DoesNotExist:
+        print(f"Certificate with id {cert_id} does not exist.")
+
+    cert_image = create_cert_png(curr_user, cert_name, base_jpeg, cert_date)
+
+    context = {"cert_image": cert_image}
+
+    return render(request, "questioner/certificate.html", context=context)
 
 def index(request: HttpRequest, os_user_id: str): 
     """ 
