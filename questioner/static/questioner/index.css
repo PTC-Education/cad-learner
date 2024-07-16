@@ -169,3 +169,54 @@ input[type=submit]:hover {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Certificates */
+
+.cert_image img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 60%;
+    border: 1px solid #777;
+}
+
+.cert_logo img {
+    max-width: 25%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    margin-bottom: 20px;
+}
+
+.cert_download {
+    margin-top: 10px;
+    text-align: center;
+}
+
+.cert_div {
+    max-width: 50%;
+    border: 1px solid;
+    display: flex;
+    width:fit-content;
+}
+
+.challenge_title {
+    font-size: 1.17em;
+    margin-top: 1em;
+    margin-left: 0.5em;
+    font-weight: bold;
+}
+
+.cert_title {
+    font-size: 0.7em;
+    margin-left: 0.9em;
+    color: #333;
+    margin-top: 3px;
+}
+
+.cert_tag {
+    background-color: #FAB601;
+    color:#fff;
+    padding: 1px 2px;
+    border-radius: 4px;
+}

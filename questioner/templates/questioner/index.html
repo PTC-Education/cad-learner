@@ -96,8 +96,13 @@
                 <div class="question"> 
                     <!-- Present every document as an accordion-->
                     <button class="accordion">
-                        <img src="{{ question.thumbnail }}" alt="" /> 
-                        <h3>&nbsp;&nbsp;&nbsp;&nbsp;{{ question.question_name }}</h3>
+                        <img src="{{ question.thumbnail }}" alt="" />
+                        <div>
+                            <div class="challenge_title">{{ question.question_name }}</div>
+                            {% if question.cert_type %}
+                                <div class="cert_title"><span class="cert_tag">CERT</span> {{ question.cert_type }}</div>
+                            {% endif %}
+                        </div>
                     </button>
                     <div class="panel">
                         <ul class="info_list">
