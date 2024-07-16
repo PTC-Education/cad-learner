@@ -185,7 +185,7 @@ def authorize(request: HttpRequest):
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
 
 
-def create_cert_png(curr_user, cert_name, base64_jpeg_data, cert_date):
+def create_cert_png(curr_user, base64_jpeg_data, cert_date):
     static_dir = 'questioner' + settings.STATIC_URL + 'questioner/'
     font_path = os.path.join(static_dir, 'fonts', 'Raleway-Medium.ttf')
     print(cert_date)
@@ -201,20 +201,17 @@ def create_cert_png(curr_user, cert_name, base64_jpeg_data, cert_date):
             user_name = get_user_name(curr_user)
             # Add text to the image
             certW = 3300
-            cert_text = cert_name
-            date_text = cert_date #date.today().strftime("%B %d, %Y")
+            date_text = cert_date.split(' ', 1)[0]
             name_font = ImageFont.truetype(font_path, 150)
             cert_font = ImageFont.truetype(font_path, 100)
             nameW, h = draw.textsize(user_name, font=name_font)
-            titleW, h = draw.textsize(cert_text, font=cert_font)
             dateW, h = draw.textsize(date_text, font=cert_font)
-            name_pos = ((certW-nameW)/2, 1200)
-            cert_pos = ((certW-titleW)/2, 1600)
-            date_pos = ((certW-dateW)/2, 1850)
-            text_color = (51, 51, 51)
-            draw.text(name_pos, user_name, font=name_font, fill=text_color)
-            draw.text(cert_pos, cert_text, font=cert_font, fill=text_color)
-            draw.text(date_pos, date_text, font=cert_font, fill=text_color)
+            name_pos = ((certW-nameW)/2, 1260)
+            date_pos = ((certW-dateW)/2, 2075)
+            date_color = (51, 51, 51)
+            name_color = (64, 170, 29)
+            draw.text(name_pos, user_name, font=name_font, fill=name_color, stroke_width=2, stroke_fill=name_color)
+            draw.text(date_pos, date_text, font=cert_font, fill=date_color)
             img_io = io.BytesIO()
             img.save(img_io, 'PNG')
             print("successfully converted to png")
@@ -290,7 +287,7 @@ def dashboard(request: HttpRequest, os_user_id: str):
 
     return render(request, "questioner/dashboard.html", context=context)
 
-def certificate(request: HttpRequest, os_user_id: str, cert_name: str, cert_id: int, cert_date: str):
+def certificate(request: HttpRequest, os_user_id: str, cert_id: int, cert_date: str):
     """ 
     Certificate display
 
@@ -308,7 +305,7 @@ def certificate(request: HttpRequest, os_user_id: str, cert_name: str, cert_id: 
     except Certificate.DoesNotExist:
         print(f"Certificate with id {cert_id} does not exist.")
 
-    cert_image = create_cert_png(curr_user, cert_name, base_jpeg, cert_date)
+    cert_image = create_cert_png(curr_user, base_jpeg, cert_date)
 
     context = {"cert_image": cert_image}
 
