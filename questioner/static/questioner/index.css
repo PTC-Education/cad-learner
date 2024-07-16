@@ -188,6 +188,11 @@ input[type=submit]:hover {
     margin-bottom: 20px;
 }
 
+.cert_download {
+    margin-top: 10px;
+    text-align: center;
+}
+
 .cert_div {
     max-width: 50%;
     border: 1px solid;
