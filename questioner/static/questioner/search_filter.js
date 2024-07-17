@@ -52,7 +52,7 @@ function search_filter() {
     for (var i = 0; i < questions.length; i++) {
         var level = questions[i].getElementsByClassName("difficulty")[0].innerHTML; 
         var type = questions[i].getElementsByClassName("q_type")[0].innerHTML;
-        var q_name = questions[i].getElementsByClassName("accordion")[0].getElementsByTagName("h3")[0]; 
+        var q_name = questions[i].getElementsByClassName("accordion")[0].getElementsByClassName("challenge_title")[0]; 
         if (is_reviewer) {
             var avail = (
                 q_avail === "all" || 
