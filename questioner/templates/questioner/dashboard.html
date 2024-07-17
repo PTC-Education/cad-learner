@@ -21,6 +21,7 @@
         <div>
             <h1>User Dashboard</h1>
             {% if user.is_reviewer %}
+            <p><strong>This section only visible to reviewers</strong></p>
                 <p><strong>Is Reviewer:</strong> {{ user.is_reviewer }}</p>
                 <p><strong>My User ID:</strong> {{ user.os_user_id }}</p>
                 <p><strong>Certificates</strong></p>
@@ -31,11 +32,22 @@
                         <p>You must complete {% if certificate.2|length == 1 %}challenge:{% else %}challenges: {% endif %} {% for cert in certificate.2 %}{% for question in questions %}{% if question.question_id == cert %}{{ question.question_name }}{% endif %}{% endfor %}, {% endfor %}to earn {{ certificate.0 }}</p>
                     {% endif %}
                 {% endfor %}
+            <p><strong>End of section only visible to reviewers</strong></p>
             {% endif %}
             <p><strong>Activity Overview:</strong></p>
             <p>You have completed {{ total_count }} challenges.</p>
             <p>This includes {{ difficulty_count.EA }} Easy, {{ difficulty_count.ME }} Medium, and {{ difficulty_count.CH }} Challenging challenges.</p>
             <p>You've done {{ types_count.SPPS }} Single Part, {{ types_count.MPPS }} Multi-Part, {{ types_count.MSPS }} Multi-Step, and {{ types_count.ASMB }} Assembly challenges.</p>
+            <p><strong>Certificates</strong></p>
+                {% for certificate in certificates %}
+                    {% if certificate.5 %}
+                        {% if certificate.2|length == 0 %}
+                            <p>You have earned <a target="_blank" href="{% url 'questioner:certificate' user.os_user_id certificate.3 certificate.4 %}">{{ certificate.0 }}</a></p>
+                        {% else %}
+                            <p>You must complete {% if certificate.2|length == 1 %}challenge:{% else %}challenges: {% endif %} {% for cert in certificate.2 %}{% for question in questions %}{% if question.question_id == cert %}{{ question.question_name }}{% endif %}{% endfor %}, {% endfor %}to earn {{ certificate.0 }}</p>
+                        {% endif %}
+                    {% endif %}
+                {% endfor %}
             <p><strong>Completed Challenges:</strong></p>
             <section id="menu">
             {% for question in questions %}

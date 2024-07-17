@@ -245,7 +245,7 @@ def dashboard(request: HttpRequest, os_user_id: str):
     # certificates array for each certificate [certname, [completed challenges], [incompleted challenges], cert_id, cert_date]
     for certificate in Certificate.objects.order_by('certificate_name'):
         base_jpeg = certificate.drawing_jpeg
-        certificates.append([certificate.certificate_name,[],certificate.required_challenges, certificate.id, ""])
+        certificates.append([certificate.certificate_name,[],certificate.required_challenges, certificate.id, "", certificate.is_published])
     
     for key in curr_user.completed_history:
         num = key.split('_')[1]
