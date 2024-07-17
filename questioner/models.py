@@ -2070,7 +2070,7 @@ def single_part_geo_check(
 
 
 def multi_part_geo_check(
-    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol
+    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol = 0.005
 ) -> Union[bool, str]: 
         """ The model is considered to be correct if for every part in the reference model, 
         there is one and only one part in the user's model with matching properties. 
