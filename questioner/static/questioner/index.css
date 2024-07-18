@@ -189,7 +189,7 @@ input[type=submit]:hover {
 }
 
 .cert_download {
-    margin-top: 10px;
+    margin: 10px;
     text-align: center;
 }
 
