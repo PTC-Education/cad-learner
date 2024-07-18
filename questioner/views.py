@@ -201,7 +201,8 @@ def create_cert_png(curr_user, base64_jpeg_data, cert_date):
             user_name = get_user_name(curr_user)
             # Add text to the image
             certW = 3300
-            date_text = cert_date.split(' ', 1)[0]
+            date_arr = cert_date.split(' ', 1)[0].split('-')
+            date_text = date_arr[1] + "-" + date_arr[2] + "-" + date_arr[0]
             name_font = ImageFont.truetype(font_path, 150)
             cert_font = ImageFont.truetype(font_path, 100)
             nameW, h = draw.textsize(user_name, font=name_font)
