@@ -1867,7 +1867,8 @@ def insert_ps_to_ps(
                     }
                 ],
                 "featureType": "importDerived"
-            }
+            },
+            "libraryVersion":1746
         }
     )
     if not response.ok: 
