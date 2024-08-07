@@ -6,6 +6,7 @@ urlpatterns = [
     path('',views.home), 
     path('home/<str:os_user_id>/',views.home, name="home"),
     path('dashboard/<str:os_user_id>/',views.dashboard, name="dashboard"),
+    path('certificate/<str:os_user_id>/<int:cert_id>/<str:cert_date>',views.certificate, name="certificate"),
     path('oauthSignin/', views.login, name='login'), 
     path('oauthRedirect/', views.authorize, name='authorize'), 
     path('index/<str:os_user_id>/', views.index, name='index'), 

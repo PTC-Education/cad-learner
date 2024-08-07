@@ -219,6 +219,57 @@ class Reviewer(models.Model):
         return super().delete(using, keep_parents)
 
 
+class Certificate(models.Model):
+    """
+    This is the class for keeping track of the certificates and their required challenges
+
+    Each row consists of the name of a certificate, the required challenges, and the basic template for the certificate that names are added to
+    """
+    certificate_name = models.CharField(
+        max_length=400, null=True, unique=True, 
+        help_text="A unique name for the certificate that will be displayed to the users"
+    )
+    required_challenges = models.JSONField(
+        default=list, null=True, 
+        help_text="An array (i.e. [4,12,23]) of the unique challenge id's required for certificate"
+    )
+    did = models.CharField("Onshape document ID", max_length=40, default=None)
+    vid = models.CharField("Onshape version ID", max_length=40, default=None)
+    jpeg_eid = models.CharField("Onshape JPEG element ID", max_length=40, default=None,
+                                help_text="Element ID for JPEG of certificate template")
+    drawing_eid = models.CharField("Onshape Drawing Template element ID", max_length=40, default=None,
+                                   help_text="Element ID for drawing template of certificate")
+    drawing_jpeg = models.TextField(
+        null=True, help_text="The exported JPEG image of the question stored as a base64 JPEG image"
+    )
+
+    # This boolean indicates when the system check is passed 
+    is_published = models.BooleanField(
+        default=False, help_text="Users can only see the certificate after it is published"
+    )
+
+    def publish(self) -> None: 
+        """
+        Publish if currently not ``is_published`` and ``publishable``; otherwise, set question to be not ``is_published``
+        """
+        if self.is_published: 
+            self.is_published = False 
+        else: 
+            self.is_published = True 
+        self.save()
+        return None 
+
+    def save(self, *args, **kwargs): 
+        """
+        Default actions when a certificate is saved, either first added or updated afterward 
+        """
+        if not self.drawing_jpeg: 
+            self.drawing_jpeg = get_jpeg_drawing(
+                self.did, self.vid, self.jpeg_eid, 
+                get_admin_token()
+            )
+        return super().save(*args, **kwargs)
+
 class Question(models.Model): 
     """ 
     This is the base class for all question types. 
@@ -434,6 +485,11 @@ class Question_SPPS(Question):
     
     Only one part is required to be modelled in one Onshape Part Studio within one step, material needs to be assigned 
     """
+    err_tolerance = models.FloatField(
+        "Custom tolerance for challenge", null=True, default=0.005, blank=True,
+        help_text="Input custom tolerance for challenge (input in decimal percent - default is 0.005 for part studios)"
+    ) 
+
     # Additional analytics to be collected and presented 
     completion_feature_cnt = models.JSONField(
         default=list, help_text="List of feature counts required by users to complete the question in history"
@@ -506,6 +562,11 @@ class Question_SPPS(Question):
         # Check if mass is given 
         if not mass_prop['bodies']['-all-']['hasMass']: 
             return "Please remember to assign a material to your part.", False
+        
+        if self.err_tolerance is None:
+            err_tol = 0.005
+        else:
+            err_tol = self.err_tolerance
 
         # Compare property values 
         eval_correct = single_part_geo_check( 
@@ -515,7 +576,8 @@ class Question_SPPS(Question):
                 mass_prop['bodies']['-all-']['volume'][0], 
                 mass_prop['bodies']['-all-']['periphery'][0],
                 mass_prop['bodies']['-all-']['principalInertia'][0]
-            ]
+            ],
+            err_tol=err_tol
         )
         if not type(eval_correct) is bool: 
             # Return failure messages 
@@ -664,6 +726,10 @@ class Question_MPPS(Question):
     
     Optinally, a starting Onshape Part Studio can be imported to the user's working Part Studio for further modifications and design 
     """
+    err_tolerance = models.FloatField(
+        "Custom tolerance for challenge", null=True, default=0.005, blank=True,
+        help_text="Input custom tolerance for challenge (input in decimal percent - default is 0.005 for part studios)"
+    ) 
     # Additional question information 
     starting_eid = models.CharField(
         "Starting element ID", max_length=40, default=None, null=True, blank=True, 
@@ -785,6 +851,11 @@ class Question_MPPS(Question):
         for item in part_list: 
             partId_to_name[item['partId']] = item['name']
         
+        if self.err_tolerance is None:
+                    err_tol = 0.005
+        else:
+            err_tol = self.err_tolerance
+
         # Compare property values 
         eval_correct = multi_part_geo_check(
             self, 
@@ -794,7 +865,8 @@ class Question_MPPS(Question):
                 [prt['periphery'][0] for prt in mass_prop['bodies'].values()], 
                 [prt['principalInertia'][0] for prt in mass_prop['bodies'].values()], 
                 [partId_to_name[prt] for prt in mass_prop['bodies'].keys()]
-            ]
+            ],
+            err_tol=err_tol
         )
         if not type(eval_correct) is bool: 
             if not user.end_mid: # first failure 
@@ -955,6 +1027,10 @@ class Question_ASMB(Question):
     
     Only one assembly of parts is required to be mated into specific configurations in one Onshape Assembly within one step
     """
+    err_tolerance = models.FloatField(
+        "Custom tolerance for challenge", null=True, default=1e-7, blank=True,
+        help_text="Input custom tolerance for challenge (input in decimal percent - default is 1e-7 for assemblies)"
+    ) 
     # Additional question information 
     starting_eid = models.CharField(
         "Source Part Studio element ID", max_length=40, default=None, null=True, 
@@ -1043,7 +1119,11 @@ class Question_ASMB(Question):
         # Compare property values 
         ref_model = self.model_inertia
         user_model = mass_prop['principalInertia']
-        err_allowance = 1e-7
+        
+        if self.err_tolerance is None:
+            err_allowance = 1e-7
+        else:
+            err_allowance = self.err_tolerance
 
         if abs(ref_model[0] - user_model[0]) > ref_model[0] * err_allowance: 
             # Did not pass and return failure messages 
@@ -1787,7 +1867,8 @@ def insert_ps_to_ps(
                     }
                 ],
                 "featureType": "importDerived"
-            }
+            },
+            "libraryVersion":1746
         }
     )
     if not response.ok: 
@@ -1872,6 +1953,23 @@ def get_part_list(
     else: 
         return None 
 
+def get_user_name(user: AuthUser) -> Any: 
+    response = requests.get(
+        os.path.join(
+            user.os_domain, 
+            "api/users/sessioninfo"
+        ), 
+        headers={
+            "Content-Type": "application/json", 
+            "Accept": "application/vnd.onshape.v2+json;charset=UTF-8;qs=0.09", 
+            "Authorization" : "Bearer " + user.access_token
+        }
+    )
+    if response.ok:
+        response = response.json()
+        return response['name']
+    else: 
+        return None 
 
 #################### Other helper functions ####################
 def plot_dist(
@@ -1916,7 +2014,7 @@ def plot_dist(
 
 
 def single_part_geo_check(
-    question: Union[Question_SPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol=0.005
+    question: Union[Question_SPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol = 0.005
 ) -> Union[bool, str]: 
     """ The model is considered to be correct if all properties of the user's model 
     falls within the properties of the reference model ± err_tol. 
@@ -1973,7 +2071,7 @@ def single_part_geo_check(
 
 
 def multi_part_geo_check(
-    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol=0.005
+    question: Union[Question_MPPS, Question_Step_PS], user_prop: Iterable[Any], err_tol = 0.005
 ) -> Union[bool, str]: 
         """ The model is considered to be correct if for every part in the reference model, 
         there is one and only one part in the user's model with matching properties. 

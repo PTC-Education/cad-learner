@@ -1,8 +1,9 @@
 import os 
 import requests
 from math import floor
-from datetime import timedelta
+from datetime import timedelta, date
 from typing import Union 
+from PIL import Image, ImageDraw, ImageFont
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse 
@@ -10,6 +11,7 @@ from django.http import HttpRequest, HttpResponse, HttpResponseRedirect, HttpRes
 from django.utils import timezone 
 from django.utils.datastructures import MultiValueDictKeyError
 from django.core.exceptions import ObjectDoesNotExist
+from django.conf import settings
 
 from .models import * 
 from data_miner.views import collect_fail_data, collect_final_data, collect_multi_step_data
@@ -183,6 +185,46 @@ def authorize(request: HttpRequest):
     return HttpResponseRedirect(reverse("questioner:index", args=[user.os_user_id]))
 
 
+def create_cert_png(curr_user, base64_jpeg_data, cert_date):
+    static_dir = 'questioner' + settings.STATIC_URL + 'questioner/'
+    font_path = os.path.join(static_dir, 'fonts', 'Raleway-Medium.ttf')
+    print(cert_date)
+    if base64_jpeg_data.startswith('data:image/jpeg;base64,'):
+        base64_jpeg = base64_jpeg_data[len('data:image/jpeg;base64,'):]
+    try:
+        # Decode the base64 string into bytes
+        jpeg_bytes = base64.b64decode(base64_jpeg)
+        print("Base64 string successfully decoded")
+        try:
+            img = Image.open(io.BytesIO(jpeg_bytes))
+            draw = ImageDraw.Draw(img)
+            user_name = get_user_name(curr_user)
+            # Add text to the image
+            certW = 3300
+            date_arr = cert_date.split(' ', 1)[0].split('-')
+            date_text = date_arr[1] + "-" + date_arr[2] + "-" + date_arr[0]
+            name_font = ImageFont.truetype(font_path, 150)
+            cert_font = ImageFont.truetype(font_path, 100)
+            nameW, h = draw.textsize(user_name, font=name_font)
+            dateW, h = draw.textsize(date_text, font=cert_font)
+            name_pos = ((certW-nameW)/2, 1260)
+            date_pos = ((certW-dateW)/2, 2075)
+            date_color = (51, 51, 51)
+            name_color = (64, 170, 29)
+            draw.text(name_pos, user_name, font=name_font, fill=name_color, stroke_width=2, stroke_fill=name_color)
+            draw.text(date_pos, date_text, font=cert_font, fill=date_color)
+            img_io = io.BytesIO()
+            img.save(img_io, 'PNG')
+            print("successfully converted to png")
+            img_base64 = base64.b64encode(img_io.getvalue()).decode('utf-8')
+            return img_base64
+        except Exception as e:
+            print(f"Error opening image: {e}")
+            return HttpResponse(f"Error opening image: {e}", status=400)
+    except Exception as e:
+        print(f"General error: {e}")
+        return HttpResponse(f"Error converting image: {str(e)}", status=500)
+      
 def dashboard(request: HttpRequest, os_user_id: str):
     """ 
     User Dashboard
@@ -199,6 +241,13 @@ def dashboard(request: HttpRequest, os_user_id: str):
     difficulty_count = {'EA':0,'ME':0,'CH':0}
     types_count = {'SPPS':0,'MPPS':0,'MSPS':0,'ASMB':0}
 
+    certificates = []
+
+    # certificates array for each certificate [certname, [completed challenges], [incompleted challenges], cert_id, cert_date]
+    for certificate in Certificate.objects.order_by('certificate_name'):
+        base_jpeg = certificate.drawing_jpeg
+        certificates.append([certificate.certificate_name,[],certificate.required_challenges, certificate.id, "", certificate.is_published])
+    
     for key in curr_user.completed_history:
         num = key.split('_')[1]
         chall_type = key.split('_')[0]
@@ -207,20 +256,61 @@ def dashboard(request: HttpRequest, os_user_id: str):
             types_count[chall_type] += 1
         except:
             pass
+        
+        for i, cert in enumerate(certificates):
+            if int(num) in cert[2]:
+                certificates[i][2].remove(int(num))
+                certificates[i][1].append(int(num))
 
         for i,attempt in enumerate(curr_user.completed_history[key]):
             curr_user.completed_history[key][i][1] = "{} min {} sec".format(
             int(attempt[1] // 60), int(attempt[1] % 60)
         )
+    
+    dates = []
+    for i, cert in enumerate(certificates):
+        if len(cert[2]) == 0:
+            for key, value in curr_user.completed_history.items():
+                num = int(key.split('_')[1])
+                if num in cert[1]:
+                    for cert_date in value:
+                        dates.append(cert_date[0])
+            dates.sort(reverse=True)
+            certificates[i][3] = cert[3]
+            certificates[i][4] = dates[0]
 
     context = {"user": curr_user}
     context["questions"] = Question.objects.order_by("question_name")
     context["difficulty_count"] = difficulty_count
     context["types_count"] = types_count
     context["total_count"] = len(curr_user.completed_history.keys())
+    context["certificates"] = certificates
 
     return render(request, "questioner/dashboard.html", context=context)
 
+def certificate(request: HttpRequest, os_user_id: str, cert_id: int, cert_date: str):
+    """ 
+    Certificate display
+
+    **Arguments:**
+    - ``os_user_id``: identify the :model:`questioner.AuthUser` model with the user's login information.
+
+    **Template:**
+    :template:`questioner/certificate.html`
+    """
+    curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
+
+    try:
+        certificate = Certificate.objects.get(id=cert_id)
+        base_jpeg = certificate.drawing_jpeg
+    except Certificate.DoesNotExist:
+        print(f"Certificate with id {cert_id} does not exist.")
+
+    cert_image = create_cert_png(curr_user, base_jpeg, cert_date)
+
+    context = {"cert_image": cert_image}
+
+    return render(request, "questioner/certificate.html", context=context)
 
 def index(request: HttpRequest, os_user_id: str): 
     """ 
@@ -242,11 +332,24 @@ def index(request: HttpRequest, os_user_id: str):
     """
     curr_user = get_object_or_404(AuthUser, os_user_id=os_user_id)
 
+    certs = {}
+    for certificate in Certificate.objects.order_by('certificate_name'):
+        certs[certificate.certificate_name] = certificate.required_challenges
+
     context = {"user": curr_user}
     if curr_user.is_reviewer: 
         context["questions"] = Question.objects.order_by("question_name")
     else: 
         context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+
+    cert_type_map = {}
+    for cert_type, ids in certs.items():
+        for question_id in ids:
+            cert_type_map[question_id] = cert_type
+
+    for question in context['questions']:
+        question.cert_type = cert_type_map.get(question.question_id, None)
+
     return render(request, "questioner/index.html", context=context)
 
 

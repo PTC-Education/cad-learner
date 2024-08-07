@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.http import HttpRequest
 from django.db.models import QuerySet
-from .models import AuthUser, Reviewer, Question_SPPS, Question_MPPS, Question_ASMB, Question_MSPS, Question_Step_PS
+from .models import AuthUser, Reviewer, Certificate, Question_SPPS, Question_MPPS, Question_ASMB, Question_MSPS, Question_Step_PS
 
 
 # Register your models here.
@@ -29,6 +29,36 @@ class Reviewer_Admin(admin.ModelAdmin):
             user.save() 
 
     def delete_queryset(self, request: HttpRequest, queryset: QuerySet[Reviewer]) -> None:
+        """ Override the default delete function 
+        """
+        for item in queryset: 
+            item.delete()
+        return super().delete_queryset(request, queryset)
+
+
+
+class Certificate_Admin(admin.ModelAdmin): 
+    list_display = [
+        'certificate_name', 'required_challenges', 'is_published'
+    ] 
+    search_fields = ['certificate_name']
+    exclude = ['drawing_jpeg']
+    actions = ['force_update','publish_certificate']
+
+    @admin.action(description="Force update selected certificate")
+    def force_update(self, request: HttpRequest, queryset: QuerySet[Certificate]) -> None:
+        """ Update the certificate JPEG image
+        """
+        for item in queryset: 
+            item.drawing_jpeg = None 
+            item.save() 
+
+    @admin.action(description="Publish/Hide selected certificate")
+    def publish_certificate(self, request: HttpRequest, queryset: QuerySet[Certificate]) -> None: 
+        for item in queryset: 
+            item.publish() 
+
+    def delete_queryset(self, request: HttpRequest, queryset: QuerySet[Certificate]) -> None:
         """ Override the default delete function 
         """
         for item in queryset: 
@@ -206,6 +236,7 @@ class Questions_MSPS_Admin(admin.ModelAdmin):
 
 
 admin.site.register(Reviewer, Reviewer_Admin)
+admin.site.register(Certificate, Certificate_Admin)
 admin.site.register(Question_SPPS, Questions_SPPS_Admin)
 admin.site.register(Question_MPPS, Questions_MPPS_Admin)
 admin.site.register(Question_ASMB, Questions_ASMB_Admin)
