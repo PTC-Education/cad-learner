@@ -42,7 +42,7 @@ def convert_plot_to_str(plot) -> str:
 
 
 def calc_time_spent(
-    q_records: QuerySet[D_Type_Dict.values()], qid: int, all: bool, 
+    q_records: QuerySet[D_Type_Dict.values()], qid: int, all: bool,  # type: ignore
     is_final_failure=False, all_success=False, has_failed_attempts=False
 ) -> List[float]: 
     """
@@ -81,7 +81,7 @@ def calc_time_spent(
     return all_times
 
 
-def calc_feature_cnt(q_records: QuerySet[D_Type_Dict.values()], qid: int) -> List[int]: 
+def calc_feature_cnt(q_records: QuerySet[D_Type_Dict.values()], qid: int) -> List[int]:  # type: ignore
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, return a list of the number of features used for all user attempts on the question 
     """
@@ -113,7 +113,7 @@ def calc_feature_cnt(q_records: QuerySet[D_Type_Dict.values()], qid: int) -> Lis
     
 
 def shaded_view_cluster(
-    q_records: QuerySet[D_Type_Dict.values()], qid: int, select_img="FRT"
+    q_records: QuerySet[D_Type_Dict.values()], qid: int, select_img="FRT" # type: ignore
 ) -> str: 
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, this function analyze all the captured shaded view images of the final workspace. This function automatically clusters all the images based on the similarity (MSE difference) between images. 
@@ -199,7 +199,7 @@ def shaded_view_cluster(
 
 
 def get_feature_counts(
-    q_records: QuerySet[D_Type_Dict.values()], qid: int
+    q_records: QuerySet[D_Type_Dict.values()], qid: int # type: ignore
 ) -> Dict[str, int]: 
     """
     Given a ``question_id`` for a :model:`questioner.Question` object, return a dictionary of the features used and the average counts of features used per user attempt on the question 

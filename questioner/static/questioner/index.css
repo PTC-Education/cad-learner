@@ -220,3 +220,16 @@ input[type=submit]:hover {
     padding: 1px 2px;
     border-radius: 4px;
 }
+
+.leaderboard {
+    font-family: 'press-start-to-play';
+}
+.players {
+    margin-left: 10px;
+}
+
+@font-face {
+    font-family: 'press-start-to-play';
+    src: local('press-start-to-play'),
+        url(../questioner/fonts/PressStart2P-vaV7.ttf) format("truetype");
+  }
