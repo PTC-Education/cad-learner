@@ -196,3 +196,16 @@ CSP_FRAME_ANCESTORS = ["https://*.onshape.com"]
 CSP_IMG_SRC = ["'self' data:"]
 CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]
 CSRF_TRUSTED_ORIGINS = ["https://*.onshape.com", "https://cad-learner.herokuapp.com"] 
+
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "rediss://ec2-3-223-122-197.compute-1.amazonaws.com:9090",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "CONNECTION_POOL_KWARGS": {
+                "ssl_ca_certs": os.path.join(BASE_DIR, "certs", "redis-chain.pem"),
+            },
+        },
+    }
+}
