@@ -13,7 +13,9 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 import os 
 import dj_database_url
 from pathlib import Path
+from urllib.parse import urlparse
 from django.test.runner import DiscoverRunner
+import redis
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -197,14 +199,15 @@ CSP_IMG_SRC = ["'self' data:"]
 CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]
 CSRF_TRUSTED_ORIGINS = ["https://*.onshape.com", "https://cad-learner.herokuapp.com"] 
 
+url = urlparse(os.environ.get("REDIS_URL"))
+r = redis.Redis(host=url.hostname, port=url.port, password=url.password, ssl=(url.scheme == "rediss"), ssl_cert_reqs=None)
+
 CACHES = {
     "default": {
-        "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": os.getenv("REDIS_URL"),  # Retrieve the REDIS_URL from the environment
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ.get('REDIS_URL'),
         "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "SSL_CERT_REQS": "required",
-            "SSL_CA_CERTS": os.path.join(BASE_DIR, "certs", "redis-chain.pem"),
-        },
+                "ssl_cert_reqs": None
+        }
     }
 }
