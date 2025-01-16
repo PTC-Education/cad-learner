@@ -200,12 +200,11 @@ CSRF_TRUSTED_ORIGINS = ["https://*.onshape.com", "https://cad-learner.herokuapp.
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "rediss://ec2-3-223-122-197.compute-1.amazonaws.com:9090",
+        "LOCATION": os.getenv("REDIS_URL"),  # Retrieve the REDIS_URL from the environment
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "CONNECTION_POOL_KWARGS": {
-                "ssl_ca_certs": os.path.join(BASE_DIR, "certs", "redis-chain.pem"),
-            },
+            "SSL_CERT_REQS": "required",
+            "SSL_CA_CERTS": os.path.join(BASE_DIR, "certs", "redis-chain.pem"),
         },
     }
 }
