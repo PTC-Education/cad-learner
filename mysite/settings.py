@@ -112,18 +112,22 @@ if 'DATABASE_URL' in os.environ:
     if "CI" in os.environ:
         DATABASES["default"]["TEST"] = DATABASES["default"]
 
-# Configure django queues 
+# Load and parse Redis URL
+REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+parsed_url = urlparse(REDIS_URL)
+
+# Redis connection for RQ Queues
 RQ_QUEUES = {
     'default': {
-        'URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'), 
+        'URL': REDIS_URL,
         'DEFAULT_TIMEOUT': 500,
     },
     'high': {
-        'URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'), 
+        'URL': REDIS_URL,
         'DEFAULT_TIMEOUT': 500,
     },
     'low': {
-        'URL': os.getenv('REDIS_URL', 'redis://localhost:6379/0'), 
+        'URL': REDIS_URL,
         'DEFAULT_TIMEOUT': 500,
     }
 }
@@ -199,15 +203,21 @@ CSP_IMG_SRC = ["'self' data:"]
 CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]
 CSRF_TRUSTED_ORIGINS = ["https://*.onshape.com", "https://cad-learner.herokuapp.com"] 
 
-url = urlparse(os.environ.get("REDIS_URL"))
-r = redis.Redis(host=url.hostname, port=url.port, password=url.password, ssl=(url.scheme == "rediss"), ssl_cert_reqs=None)
+redis_client = redis.Redis(
+    host=parsed_url.hostname,
+    port=parsed_url.port,
+    password=parsed_url.password,
+    ssl=(parsed_url.scheme == "rediss"),
+    ssl_cert_reqs=None
+)
 
+# Caching configuration
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": os.environ.get('REDIS_URL'),
+        "LOCATION": REDIS_URL,
         "OPTIONS": {
-                "ssl_cert_reqs": None
+            "ssl_cert_reqs": None if REDIS_URL.startswith("rediss://") else "required"
         }
     }
 }
