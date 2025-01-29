@@ -31,13 +31,7 @@ SECRET_KEY = 'django-insecure-54dxenp63odwacir=lc-pz3hnz@8t+0#fe!9^vs0+_6rka=mi3
 if 'SECRET_KEY' in os.environ: 
     SECRET_KEY = os.environ["SECRET_KEY"]
 
-# SECURITY WARNING: don't run with debug turned on in production!
-# Forcing redeploy...
-#if not IS_HEROKU: 
-#    DEBUG = True
-#else: 
-#    DEBUG = False
-DEBUG = True
+DEBUG =False
 
 # Generally avoid wildcards (*). However since Heroku router provides hostname validation it is ok
 ALLOWED_HOSTS = ["*"]
@@ -115,6 +109,16 @@ if 'DATABASE_URL' in os.environ:
 # Load and parse Redis URL
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 parsed_url = urlparse(REDIS_URL)
+
+# If I ever need it...
+# add parse_qs, url_encode, and urlunparse to from urllib.parse
+# Parse existing query parameters
+# query_params = parse_qs(parsed_url.query)
+# query_params['ssl_cert_reqs'] = ['none']  # Add or overwrite the parameter
+
+# Reconstruct the updated URL
+# new_query = urlencode(query_params, doseq=True)
+# new_redis_url = urlunparse(parsed_url._replace(query=new_query))
 
 # Redis connection for RQ Queues
 RQ_QUEUES = {
