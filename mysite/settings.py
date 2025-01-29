@@ -215,9 +215,9 @@ redis_client = redis.Redis(
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": REDIS_URL,
+        "LOCATION": os.environ.get('REDIS_URL'),
         "OPTIONS": {
-            "ssl_cert_reqs": None if REDIS_URL.startswith("rediss://") else "required"
+                "ssl_cert_reqs": None
         }
     }
 }
