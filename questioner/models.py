@@ -1744,8 +1744,7 @@ def get_mass_properties(
         }, 
         params={
             "massAsGroup": massAsGroup
-        },
-        verify=False
+        }
     )
     if response.ok: 
         return response.json() 
