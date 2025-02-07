@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 import os 
 import dj_database_url
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from django.test.runner import DiscoverRunner
 import redis
 
@@ -110,15 +110,14 @@ if 'DATABASE_URL' in os.environ:
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 parsed_url = urlparse(REDIS_URL)
 
-# If I ever need it...
-# add parse_qs, url_encode, and urlunparse to from urllib.parse
+# SSL Fix
 # Parse existing query parameters
-# query_params = parse_qs(parsed_url.query)
-# query_params['ssl_cert_reqs'] = ['none']  # Add or overwrite the parameter
+query_params = parse_qs(parsed_url.query)
+query_params['ssl_cert_reqs'] = ['none']  # Add or overwrite the parameter
 
 # Reconstruct the updated URL
-# new_query = urlencode(query_params, doseq=True)
-# new_redis_url = urlunparse(parsed_url._replace(query=new_query))
+new_query = urlencode(query_params, doseq=True)
+REDIS_URL = urlunparse(parsed_url._replace(query=new_query))
 
 # Redis connection for RQ Queues
 RQ_QUEUES = {
