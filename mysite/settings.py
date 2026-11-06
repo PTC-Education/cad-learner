@@ -110,14 +110,15 @@ if 'DATABASE_URL' in os.environ:
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
 parsed_url = urlparse(REDIS_URL)
 
-# SSL Fix
-# Parse existing query parameters
-query_params = parse_qs(parsed_url.query)
-query_params['ssl_cert_reqs'] = ['none']  # Add or overwrite the parameter
+if parsed_url.scheme == 'rediss':
+    # SSL Fix
+    # Parse existing query parameters
+    query_params = parse_qs(parsed_url.query)
+    query_params['ssl_cert_reqs'] = ['none']  # Add or overwrite the parameter
 
-# Reconstruct the updated URL
-new_query = urlencode(query_params, doseq=True)
-REDIS_URL = urlunparse(parsed_url._replace(query=new_query))
+    # Reconstruct the updated URL
+    new_query = urlencode(query_params, doseq=True)
+    REDIS_URL = urlunparse(parsed_url._replace(query=new_query))
 
 # Redis connection for RQ Queues
 RQ_QUEUES = {
