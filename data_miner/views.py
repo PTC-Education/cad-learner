@@ -30,6 +30,13 @@ D_Type_Dict = {
 }
 
 
+# Max mean squared error (grayscale, 0-255) for two shaded views to count as the
+# same model. Calibrated on prod data (2026-11): identical-looking models score
+# ~100-500 from 1px framing/anti-aliasing shifts; genuinely different models
+# (wrong thickness, flipped part) score 3000+.
+SHADED_VIEW_MSE_THRESHOLD = 1000
+
+
 class JsonbPathQueryArray(Func):
     """ Postgres ``jsonb_path_query_array(json, path)`` """
     function = 'jsonb_path_query_array'
@@ -174,13 +181,10 @@ def shaded_view_cluster(
         image = image.convert("L") # convert the images to grayscale
         return np.array(image)
 
-    def image_error(img1, img2):
+    def image_error(img1, img2) -> float:
         """ Calculate the mean squared error (MSE) between two decoded images """
-        h, w = img1.shape
-        diff = np.subtract(img1, img2)
-        err = np.sum(diff**2)
-        mse = err/(float(h*w))
-        return mse, diff
+        diff = img1 - img2
+        return float(np.mean(diff * diff, dtype=np.float64))
 
     # Get all images for the question, fetching only the shaded-view column
     imgs = []
@@ -198,8 +202,9 @@ def shaded_view_cluster(
         ).iterator(chunk_size=50):
             if final_shaded_views:
                 imgs.append(final_shaded_views[select_img])
-    # Decode each image once (previously re-decoded for every pair)
-    decoded = [readb64_img(img) for img in imgs]
+    # Decode each image once. Use a signed float type: subtracting the raw
+    # uint8 pixels wraps around (e.g. 10 - 20 = 246), which corrupted the MSE
+    decoded = [readb64_img(img).astype(np.float32) for img in imgs]
     # Cluster images based on MSE values. Greedy: each cluster seed is only
     # compared against the images not yet clustered, so the full n x n
     # error matrix is never needed.
@@ -210,7 +215,7 @@ def shaded_view_cluster(
         clusters.append([curr_ind])
         curr_cluster_size = len(clusters)
         for item in imgs_ind.copy():
-            if image_error(decoded[curr_ind], decoded[item])[0] <= 15:
+            if image_error(decoded[curr_ind], decoded[item]) <= SHADED_VIEW_MSE_THRESHOLD:
                 imgs_ind.remove(item)
                 clusters[curr_cluster_size-1].append(item)
     clusters.sort(key=lambda x:len(x), reverse=True)
