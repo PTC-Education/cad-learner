@@ -131,3 +131,6 @@ dmypy.json
 
 # MacOS specific 
 .DS_Store
+
+# Local scratch work (analysis output, data pulls) - never commit
+scratch/
