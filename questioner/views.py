@@ -280,7 +280,7 @@ def dashboard(request: HttpRequest, os_user_id: str):
             certificates[i][4] = dates[0]
 
     context = {"user": curr_user}
-    context["questions"] = Question.objects.order_by("question_name")
+    context["questions"] = Question.objects.defer("drawing_jpeg").order_by("question_name")
     context["difficulty_count"] = difficulty_count
     context["types_count"] = types_count
     context["total_count"] = len(curr_user.completed_history.keys())
@@ -338,9 +338,9 @@ def index(request: HttpRequest, os_user_id: str):
 
     context = {"user": curr_user}
     if curr_user.is_reviewer: 
-        context["questions"] = Question.objects.order_by("question_name")
+        context["questions"] = Question.objects.defer("drawing_jpeg").order_by("question_name")
     else: 
-        context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+        context["questions"] = Question.objects.defer("drawing_jpeg").filter(is_published=True).order_by("question_name")
 
     cert_type_map = {}
     for cert_type, ids in certs.items():
@@ -395,9 +395,9 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
                         "error_message": "Please start with an empty part studio and relaunch this app ..."
                     }
                     if curr_user.is_reviewer: 
-                        context["questions"] = Question.objects.order_by("question_name")
+                        context["questions"] = Question.objects.defer("drawing_jpeg").order_by("question_name")
                     else: 
-                        context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+                        context["questions"] = Question.objects.defer("drawing_jpeg").filter(is_published=True).order_by("question_name")
                     return render(request, "questioner/index.html", context=context)
             else: 
                 return HttpResponse("An unexpected error has occurred. You may have lost your internet connection or granted OAuth access to the wrong Onshape account/Enterprise. Please refresh the page and relaunch the app ...")
@@ -415,9 +415,9 @@ def model(request: HttpRequest, question_type: str, question_id: int, os_user_id
                         "error_message": "Please start with an empty assembly and relaunch this app ..."
                     }
                     if curr_user.is_reviewer: 
-                        context["questions"] = Question.objects.order_by("question_name")
+                        context["questions"] = Question.objects.defer("drawing_jpeg").order_by("question_name")
                     else: 
-                        context["questions"] = Question.objects.filter(is_published=True).order_by("question_name")
+                        context["questions"] = Question.objects.defer("drawing_jpeg").filter(is_published=True).order_by("question_name")
                     return render(request, "questioner/index.html", context=context)
             else: 
                 return HttpResponse("An unexpected error has occurred. You may have lost your internet connection or granted OAuth access to the wrong Onshape account/Enterprise. Please refresh the page and relaunch the app ...")

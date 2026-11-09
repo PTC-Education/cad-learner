@@ -313,7 +313,7 @@ def dashboard(request: HttpRequest):
     context = {} 
     
     # Buttons for detailed views 
-    all_ques = Question.objects.filter(is_published=True)
+    all_ques = Question.objects.defer("drawing_jpeg").filter(is_published=True)
     context['all_questions'] = sorted(all_ques, key=lambda x:x.question_name)
     
     # Simple counting 
@@ -359,7 +359,7 @@ def succ_fail_cnt(request: HttpRequest):
     """
     context = {} 
 
-    all_ques = Question.objects.filter(is_published=True)
+    all_ques = Question.objects.defer("drawing_jpeg").filter(is_published=True)
     all_ques = sorted(all_ques, key=lambda x:x.question_name)
 
     x = np.arange(len(all_ques))
@@ -401,7 +401,7 @@ def time_distribution(request: HttpRequest):
     """
     context = {} 
 
-    all_ques = Question.objects.filter(is_published=True)
+    all_ques = Question.objects.defer("drawing_jpeg").filter(is_published=True)
     all_ques = sorted(all_ques, key=lambda x:x.question_name)
 
     y_time = [
@@ -441,7 +441,7 @@ def feature_count(request: HttpRequest):
     """
     context = {} 
 
-    all_ques = Question.objects.filter(is_published=True)
+    all_ques = Question.objects.defer("drawing_jpeg").filter(is_published=True)
     all_ques = sorted(all_ques, key=lambda x:x.question_name)
 
     y_cnt = [
